@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Checkout - Supermarket App</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <style>
+    body { background:#f7f8fb; font-family:"Inter","Segoe UI",system-ui,-apple-system,sans-serif; }
+    .navbar-brand { font-weight:700; color:#0d6efd !important; }
+    .nav-link { color:#0f172a !important; font-weight:600; }
+    .nav-link.active { color:#0d6efd !important; }
+    .badge-role { font-size:12px; letter-spacing:0.04em; }
+    .card-shell { background:#fff; border:1px solid #e5e7eb; border-radius:16px; box-shadow:0 12px 28px rgba(15,23,42,0.06); }
+    .pill { display:inline-flex; align-items:center; gap:8px; padding:10px 14px; border-radius:999px; background:#e7f1ff; color:#0f172a; font-weight:600; }
+  </style>
+</head>
+<body>
+  <nav class="navbar navbar-expand-lg navbar-light bg-white border-bottom shadow-sm">
+    <div class="container">
+      <a class="navbar-brand" href="/">Supermarket</a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav"><span class="navbar-toggler-icon"></span></button>
+      <div class="collapse navbar-collapse" id="mainNav">
+        <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+          <li class="nav-item"><a class="nav-link" href="/shopping">Categories</a></li>
+          <li class="nav-item"><a class="nav-link" href="/cart">Cart</a></li>
+          <li class="nav-item"><a class="nav-link active" href="/checkout">Checkout</a></li>
+        </ul>
+        <ul class="navbar-nav mb-2 mb-lg-0">
+          <% if (!user) { %>
+            <li class="nav-item"><a class="btn btn-outline-primary me-2" href="/register">Sign up</a></li>
+            <li class="nav-item"><a class="btn btn-primary" href="/login">Log in</a></li>
+          <% } else { %>
+            <li class="nav-item d-flex align-items-center me-2">Hello, <%= user.username || user.email %></li>
+            <li class="nav-item"><span class="badge bg-light text-dark badge-role me-2">User</span></li>
+            <li class="nav-item"><a class="nav-link" href="/logout">Logout</a></li>
+          <% } %>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <main class="container py-4">
+    <% if (typeof success_msg !== 'undefined' && success_msg) { %>
+      <% (Array.isArray(success_msg) ? success_msg : [success_msg]).forEach(function(m){ %>
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+          <%= m %>
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+      <% }) %>
+    <% } %>
+    <% if (typeof error_msg !== 'undefined' && error_msg) { %>
+      <% (Array.isArray(error_msg) ? error_msg : [error_msg]).forEach(function(m){ %>
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+          <%= m %>
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+      <% }) %>
+    <% } %>
+
+    <div class="d-flex align-items-center justify-content-between flex-wrap mb-3">
+      <div>
+        <div class="pill mb-2">Checkout</div>
+        <h2 class="fw-bold mb-1">Almost there. Confirm your order.</h2>
+        <p class="text-muted mb-0">Apply promos, redeem loyalty, and place your order securely.</p>
+      </div>
+      <a href="/cart" class="btn btn-outline-primary">Back to cart</a>
+    </div>
+
+    <% if (promoError) { %><div class="alert alert-danger"><%= promoError %></div><% } %>
+    <% if (appliedPromo) { %><div class="alert alert-success">Promo applied: <strong><%= appliedPromo.code || appliedPromo %></strong></div><% } %>
+
+    <div class="row g-3">
+      <div class="col-lg-7">
+        <div class="card-shell p-3 mb-3">
+          <h5 class="fw-semibold mb-3">Order summary</h5>
+          <table class="table align-middle mb-0">
+            <thead class="table-light">
+              <tr><th>Product</th><th class="text-center">Qty</th><th class="text-end">Subtotal</th></tr>
+            </thead>
+            <tbody>
+              <% cart.forEach(function(item) { %>
+                <tr>
+                  <td><%= item.productName %></td>
+                  <td class="text-center"><%= item.quantity %></td>
+                  <td class="text-end">$<%= (item.price * item.quantity).toFixed(2) %></td>
+                </tr>
+              <% }); %>
+            </tbody>
+          </table>
+        </div>
+
+        <% if (promos && promos.length) { %>
+          <div class="card-shell p-3 mb-3">
+            <h6 class="fw-semibold">Available promos</h6>
+            <ul class="list-unstyled mb-0 small">
+              <% promos.forEach(function(p) { %>
+                <li class="mb-1"><strong><%= p.code %></strong> &middot; <%= p.description %> <% if (p.type === 'percent') { %>(<%= p.amount %>% off)<% } else { %>($<%= p.amount %> off)<% } %></li>
+              <% }); %>
+            </ul>
+          </div>
+        <% } %>
+      </div>
+
+      <div class="col-lg-5">
+        <% if (user) { %>
+          <div class="card-shell p-3 mb-3">
+            <h6 class="fw-semibold">Loyalty & membership</h6>
+            <p class="mb-1">Membership: <strong><%= user.membership_tier || 'Basic' %></strong></p>
+            <p class="mb-2">Points: <strong><%= user.loyalty_points || 0 %></strong></p>
+            <form method="POST" action="/apply-loyalty" class="d-flex gap-2">
+              <input type="number" name="pointsToRedeem" class="form-control" min="1" max="<%= user.loyalty_points || 0 %>" placeholder="Points to redeem">
+              <button class="btn btn-outline-success" type="submit">Redeem</button>
+            </form>
+            <% if (typeof loyaltyRedemption !== 'undefined' && loyaltyRedemption && loyaltyRedemption.points > 0) { %>
+              <div class="alert alert-info mt-2 mb-0 p-2 d-flex justify-content-between align-items-center">
+                <span>Redeeming <strong><%= loyaltyRedemption.points %></strong> points for <strong>$<%= loyaltyRedemption.discount.toFixed(2) %></strong> off.</span>
+                <form action="/cancel-loyalty" method="POST" class="ms-2">
+                  <button type="submit" class="btn btn-sm btn-outline-danger">Cancel</button>
+                </form>
+              </div>
+            <% } %>
+          </div>
+        <% } %>
+
+        <div class="card-shell p-3 mb-3">
+          <h6 class="fw-semibold">Promo code</h6>
+          <form method="POST" action="/preview-promo" class="d-flex gap-2" novalidate>
+            <input name="code" type="text" class="form-control" placeholder="Enter promo code" required>
+            <button class="btn btn-outline-primary" type="submit">Preview</button>
+          </form>
+          <small class="text-muted d-block mt-2">Preview before confirming. Applied promos stay until removed.</small>
+        </div>
+
+        <% if (previewPromo) { %>
+          <div class="card-shell p-3 mb-3 border-info">
+            <h6 class="fw-semibold">Promo preview: <strong><%= previewPromo.code %></strong></h6>
+            <% if (previewPromo.description) { %><p class="mb-2"><%= previewPromo.description %></p><% } %>
+            <p class="mb-2">Estimated discount: <strong>$<%= (typeof previewPromo.discount === 'number' ? previewPromo.discount.toFixed(2) : (previewPromo.discount || '0.00')) %></strong></p>
+            <form method="POST" action="/confirm-promo" class="d-inline"><button class="btn btn-sm btn-success" type="submit">Confirm</button></form>
+            <form method="POST" action="/cancel-promo" class="d-inline ms-2"><button class="btn btn-sm btn-secondary" type="submit">Cancel</button></form>
+          </div>
+        <% } %>
+
+        <% if (appliedPromo) { %>
+          <div class="card-shell p-3 mb-3 border-success">
+            <h6 class="fw-semibold">Applied promo</h6>
+            <p class="mb-1"><strong><%= appliedPromo.code || appliedPromo %></strong></p>
+            <% if (appliedPromo && appliedPromo.description) { %><p class="small text-muted mb-1"><%= appliedPromo.description %></p><% } %>
+            <form method="POST" action="/remove-applied-promo"><button class="btn btn-sm btn-outline-danger">Remove</button></form>
+          </div>
+        <% } %>
+
+        <div class="card-shell p-3">
+          <h6 class="fw-semibold">Total</h6>
+          <%
+            let subtotal = originalTotal || 0;
+            let promoDiscount = appliedDiscount && appliedDiscount > 0 ? appliedDiscount : 0;
+            let loyaltyDiscount = (typeof loyaltyRedemption !== 'undefined' && loyaltyRedemption && loyaltyRedemption.discount) ? loyaltyRedemption.discount : 0;
+            let finalTotal = Math.max(0, subtotal - promoDiscount - loyaltyDiscount);
+          %>
+          <div class="d-flex justify-content-between mb-1"><span class="text-muted">Subtotal</span><span>$<%= subtotal.toFixed(2) %></span></div>
+          <% if (promoDiscount > 0) { %><div class="d-flex justify-content-between mb-1 text-success"><span>Promo</span><span>- $<%= promoDiscount.toFixed(2) %></span></div><% } %>
+          <% if (loyaltyDiscount > 0) { %><div class="d-flex justify-content-between mb-1 text-success"><span>Loyalty</span><span>- $<%= loyaltyDiscount.toFixed(2) %></span></div><% } %>
+          <hr>
+          <div class="d-flex justify-content-between align-items-center mb-3"><span class="fw-semibold">Total</span><span class="fw-bold fs-4">$<%= finalTotal.toFixed(2) %></span></div>
+          <form method="POST" action="/checkout" class="mt-2"><button class="btn btn-primary w-100 btn-lg" type="submit">Place order</button></form>
+          <small class="text-muted d-block mt-2">Secure payment and order confirmation will follow.</small>
+        </div>
+      </div>
+    </div>
+  </main>
+</body>
+</html>

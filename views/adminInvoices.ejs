@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <title>All Invoices</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            background: #f5f5f7;
+            margin: 0;
+            padding: 0;
+        }
+        .page {
+            max-width: 1200px;
+            margin: 32px auto;
+            padding: 24px 32px 40px;
+            background: #ffffff;
+            border-radius: 24px;
+            box-shadow: 0 18px 45px rgba(15, 23, 42, 0.06);
+        }
+        h1 {
+            margin: 0;
+            font-size: 40px;
+            letter-spacing: -0.03em;
+        }
+        .subtitle {
+            margin-top: 8px;
+            color: #6b7280;
+            font-size: 16px;
+        }
+        .nav-links {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .nav-links a {
+            color: #2563eb;
+            text-decoration: none;
+            font-weight: 600;
+        }
+        .header-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 32px;
+        }
+        .btn-secondary {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 18px;
+            border-radius: 999px;
+            border: 1px solid #e5e7eb;
+            background: #f9fafb;
+            color: #111827;
+            text-decoration: none;
+            font-size: 14px;
+        }
+        .btn-secondary:hover {
+            background: #eef2ff;
+            border-color: #6366f1;
+        }
+        .btn-secondary span.icon {
+            font-size: 16px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 12px;
+            background: #ffffff;
+            border-radius: 18px;
+            overflow: hidden;
+        }
+        thead {
+            background: #f9fafb;
+        }
+        th, td {
+            padding: 14px 20px;
+            text-align: left;
+            font-size: 14px;
+        }
+        th {
+            font-weight: 600;
+            color: #6b7280;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        tr + tr td {
+            border-top: 1px solid #f1f5f9;
+        }
+        tbody tr:hover {
+            background: #f9fafb;
+        }
+        .col-id {
+            width: 60px;
+            color: #9ca3af;
+        }
+        .col-email {
+            width: 260px;
+        }
+        .col-date {
+            width: 260px;
+        }
+        .col-money {
+            width: 140px;
+            text-align: right;
+        }
+        .col-actions {
+            width: 160px;
+            text-align: right;
+        }
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 4px 10px;
+            border-radius: 999px;
+            background: #eff6ff;
+            color: #1d4ed8;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        .btn-view {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 8px 18px;
+            border-radius: 999px;
+            border: none;
+            background: #111827;
+            color: #ffffff;
+            font-size: 13px;
+            text-decoration: none;
+            cursor: pointer;
+        }
+        .btn-view:hover {
+            background: #0f172a;
+        }
+        .empty-state {
+            padding: 40px 20px;
+            text-align: center;
+            color: #9ca3af;
+            font-size: 14px;
+        }
+        .nav-links a { color: #6f42c1; }
+        .navbar-admin { background: linear-gradient(90deg, #6f42c1, #b5179e); }
+    </style>
+</head>
+<body>
+<div class="page">
+    <div class="header-row">
+        <div>
+            <h1>All Invoices</h1>
+            <div class="subtitle">Admin view of all customer orders</div>
+            <div class="nav-links" style="margin-top:8px;">
+                <a href="/admin/dashboard">Admin dashboard</a>
+                <a href="/admin/promocodes">Promo codes</a>
+                <a href="/admin/products">Products</a>
+            </div>
+        </div>
+        <a href="/shopping" class="btn-secondary">
+            <span class="icon"></span>
+            Back to Shop
+        </a>
+    </div>
+
+    <% if (orders && orders.length > 0) { %>
+        <table>
+            <thead>
+            <tr>
+                <th class="col-id">Invoice</th>
+                <th>Customer</th>
+                <th class="col-email">Email</th>
+                <th class="col-date">Created At</th>
+                <th class="col-money">Subtotal ($)</th>
+                <th class="col-money">Final Total ($)</th>
+                <th class="col-actions"></th>
+            </tr>
+            </thead>
+            <tbody>
+            <% orders.forEach(order => { %>
+                <tr>
+                    <td class="col-id"><span class="badge"><%= typeof order.invoiceNumber !== 'undefined' ? order.invoiceNumber : ('#' + order.id) %></span></td>
+                    <td><%= order.username %></td>
+                    <td class="col-email"><%= order.email %></td>
+                    <td class="col-date">
+                        <%= order.created_at && order.created_at.toLocaleString
+                            ? order.created_at.toLocaleString()
+                            : order.created_at %>
+                    </td>
+                    <td class="col-money"><%= Number(order.subtotal || 0).toFixed(2) %></td>
+                    <td class="col-money"><%= Number(order.final_total || 0).toFixed(2) %></td>
+                    <td class="col-actions">
+                        <a href="/admin/invoices/<%= order.id %>" class="btn-view">
+                            View invoice
+                        </a>
+                    </td>
+                </tr>
+            <% }); %>
+            </tbody>
+        </table>
+    <% } else { %>
+        <div class="empty-state">
+            No invoices found yet.
+        </div>
+    <% } %>
+</div>
+</body>
+</html>

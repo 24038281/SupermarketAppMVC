@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin - Promo Codes</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <style>
+    .navbar-admin { background: linear-gradient(90deg, #6f42c1, #b5179e); }
+    .badge-role { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.04em; }
+  </style>
+</head>
+<body class="bg-light">
+  <nav class="navbar navbar-expand-sm navbar-dark navbar-admin">
+    <div class="container-fluid">
+      <a class="navbar-brand" href="/">Supermarket App</a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNavbar">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+
+      <div class="collapse navbar-collapse" id="mainNavbar">
+        <ul class="navbar-nav me-auto mb-2 mb-sm-0">
+          <li class="nav-item"><a class="nav-link" href="/">Home</a></li>
+          <% if (user) { %>
+            <li class="nav-item"><a class="nav-link" href="/shopping">Shop</a></li>
+            <% if (user.role === 'admin') { %>
+              <li class="nav-item dropdown">
+                <a class="nav-link dropdown-toggle active" href="#" id="adminDropdown" role="button" data-bs-toggle="dropdown">Admin</a>
+                <ul class="dropdown-menu" aria-labelledby="adminDropdown">
+                  <li><a class="dropdown-item" href="/admin/dashboard">Dashboard</a></li>
+                  <li><a class="dropdown-item" href="/admin/products">Manage Products</a></li>
+                  <li><a class="dropdown-item" href="/admin/categories">Manage Categories</a></li>
+                  <li><a class="dropdown-item" href="/admin/suppliers">Manage Suppliers</a></li>
+                  <li><a class="dropdown-item" href="/inventory">Inventory Dashboard</a></li>
+                  <li><a class="dropdown-item active" href="/admin/promocodes">Promo Codes</a></li>
+                  <li><a class="dropdown-item" href="/admin/invoices">Invoices</a></li>
+                  <li><a class="dropdown-item" href="/admin/membership-plans">Membership Plans</a></li>
+                </ul>
+              </li>
+            <% } %>
+          <% } %>
+        </ul>
+
+        <ul class="navbar-nav mb-2 mb-sm-0">
+          <% if (!user) { %>
+            <li class="nav-item"><a class="nav-link" href="/register">Register</a></li>
+            <li class="nav-item"><a class="nav-link" href="/login">Login</a></li>
+          <% } else { %>
+            <li class="nav-item"><span class="navbar-text me-2">Hello, <%= user.username || user.name || user.email || 'Admin' %></span></li>
+            <li class="nav-item"><span class="navbar-text badge bg-light text-dark badge-role">Admin</span></li>
+            <li class="nav-item"><a class="nav-link" href="/logout">Logout</a></li>
+          <% } %>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container my-4">
+    <h1 class="mb-3">Manage Promo Codes</h1>
+    <% if (typeof success_msg !== 'undefined' && success_msg) { %>
+      <% (Array.isArray(success_msg) ? success_msg : [success_msg]).forEach(function(m){ %>
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+          <%= m %>
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+      <% }) %>
+    <% } %>
+    <% if (typeof error_msg !== 'undefined' && error_msg) { %>
+      <% (Array.isArray(error_msg) ? error_msg : [error_msg]).forEach(function(m){ %>
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+          <%= m %>
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+      <% }) %>
+    <% } %>
+
+    <div class="row">
+      <div class="col-md-6">
+        <h5>Create Promo</h5>
+        <form method="POST" action="/admin/promocodes">
+          <div class="mb-2">
+            <label class="form-label">Code</label>
+            <input name="code" class="form-control" required />
+          </div>
+          <div class="mb-2">
+            <label class="form-label">Description</label>
+            <input name="description" class="form-control" />
+          </div>
+          <div class="mb-2 row">
+            <div class="col">
+              <label class="form-label">Type</label>
+              <select name="type" class="form-select">
+                <option value="percent">Percent</option>
+                <option value="fixed" selected>Fixed</option>
+              </select>
+            </div>
+            <div class="col">
+              <label class="form-label">Amount</label>
+              <input name="amount" type="number" step="0.01" class="form-control" required />
+            </div>
+          </div>
+          <div class="mb-2 row">
+            <div class="col">
+              <label class="form-label">Min Total</label>
+              <input name="min_total" type="number" step="0.01" class="form-control" placeholder="optional" />
+            </div>
+            <div class="col">
+              <label class="form-label">Per-user limit</label>
+              <input name="per_user_limit" type="number" class="form-control" placeholder="optional" />
+            </div>
+          </div>
+          <div class="mb-2 row">
+            <div class="col">
+              <label class="form-label">Starts At</label>
+              <input name="starts_at" type="datetime-local" class="form-control" />
+            </div>
+            <div class="col">
+              <label class="form-label">Expires At</label>
+              <input name="expires_at" type="datetime-local" class="form-control" />
+            </div>
+          </div>
+          <div class="mb-2 row">
+            <div class="col">
+              <label class="form-label">Max Uses</label>
+              <input name="max_uses" type="number" class="form-control" placeholder="optional" />
+            </div>
+            <div class="col d-flex align-items-end">
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" name="active" id="activeCheck" checked>
+                <label class="form-check-label" for="activeCheck">Active</label>
+              </div>
+            </div>
+          </div>
+          <button class="btn btn-primary">Create Promo</button>
+        </form>
+      </div>
+
+      <div class="col-md-6">
+        <h5>Existing Promos</h5>
+        <% if (!promocodes || promocodes.length === 0) { %>
+          <p class="text-muted">No promo codes yet.</p>
+        <% } else { %>
+          <table class="table table-striped">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Code</th>
+                <th>Type</th>
+                <th>Amount</th>
+                <th>Min Total</th>
+                <th>Uses</th>
+                <th>Active</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% promocodes.forEach(function(promo, index) { %>
+                <tr>
+                  <td><%= index + 1 %></td>
+                  <td><%= promo.code %></td>
+                  <td><%= promo.type %></td>
+                  <td><%= promo.amount %></td>
+                  <td><%= promo.min_total %></td>
+                  <td><%= promo.uses %></td>
+                  <td><%= promo.active ? 'Yes' : 'No' %></td>
+                  <td>
+                    <a class="btn btn-sm btn-outline-primary" href="/admin/promocodes/<%= promo.id %>/edit">Edit</a>
+                    <form method="POST" action="/admin/promocodes/<%= promo.id %>/delete" style="display:inline-block; margin-left:6px;" onsubmit="return confirm('Delete this promo?');">
+                      <button class="btn btn-sm btn-outline-danger" type="submit">Delete</button>
+                    </form>
+                  </td>
+                </tr>
+              <% }); %>
+            </tbody>
+          </table>
+        <% } %>
+      </div>
+    </div>
+
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

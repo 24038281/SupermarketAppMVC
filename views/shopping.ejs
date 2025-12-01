@@ -1,0 +1,233 @@
+<%- include('partials/header', { title: 'Shop', active: 'shop', user: user, query: typeof q !== 'undefined' ? q : '' }) %>
+  <style>
+    :root {
+      --cream: #fff7ef;
+      --card: #ffffff;
+      --mint: #21a179;
+      --mint-dark: #158561;
+      --badge: #c8d5ff;
+      --text-main: #0f172a;
+      --text-muted: #6b7280;
+      --pill: #f24c7c;
+    }
+    body { background: var(--cream); }
+    .shop-header {
+      background: #fff;
+      border: 1px solid rgba(0,0,0,0.04);
+      border-radius: 16px;
+      padding: 16px 18px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+    .shop-pill {
+      background: #f2f5ff;
+      color: #3c4b86;
+      font-weight: 700;
+      border-radius: 999px;
+      padding: 8px 14px;
+      text-transform: uppercase;
+      font-size: 12px;
+      letter-spacing: 0.05em;
+    }
+    .product-card {
+      background: var(--card);
+      border-radius: 26px;
+      border: 1px solid rgba(0,0,0,0.04);
+      padding: 22px 18px 18px;
+      box-shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
+      position: relative;
+      overflow: hidden;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+    .product-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 24px 55px rgba(15, 23, 42, 0.12);
+    }
+    .product-badge {
+      position: absolute;
+      top: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      border-radius: 999px;
+      padding: 6px 14px;
+      font-weight: 700;
+      font-size: 12px;
+      box-shadow: 0 6px 14px rgba(15,23,42,0.08);
+    }
+    .badge-best { background: #e5e8ff; color:#4b5cc4; }
+    .badge-new { background: #fbd1dc; color:#d53f6a; }
+    .wish-btn {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      border: 1px solid rgba(0,0,0,0.08);
+      background: #fff;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: #0f172a;
+      box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
+    }
+    .wish-btn:hover { background: #f7f7f7; }
+    .product-img {
+      max-height: 180px;
+      object-fit: contain;
+      display: block;
+      margin: 28px auto 8px;
+    }
+    .product-meta { text-transform: uppercase; letter-spacing: 0.08em; font-size: 12px; color: var(--text-muted); }
+    .product-title { font-weight: 800; font-size: 20px; color: var(--text-main); }
+    .product-price { font-weight: 700; color: var(--text-main); }
+    .cta-btn {
+      background: var(--mint);
+      color: #fff;
+      border: none;
+      border-radius: 12px;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      padding: 12px 14px;
+      width: 100%;
+      text-transform: uppercase;
+    }
+    .cta-btn:hover { background: var(--mint-dark); color: #fff; }
+    .qty-input { max-width: 90px; }
+    .filter-card {
+      background: #fff;
+      border: 1px solid rgba(0,0,0,0.04);
+      border-radius: 20px;
+      box-shadow: 0 14px 30px rgba(15,23,42,0.06);
+      padding: 16px 18px;
+      margin-bottom: 16px;
+    }
+    .filter-title {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 800;
+      letter-spacing: -0.01em;
+      color: var(--text-main);
+    }
+    .chip-pill {
+      background: var(--pill);
+      color: #fff;
+      font-weight: 700;
+      border-radius: 999px;
+      padding: 6px 14px;
+      font-size: 12px;
+      letter-spacing: 0.04em;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+  </style>
+
+    <% if (typeof success_msg !== 'undefined' && success_msg) { %>
+      <% (Array.isArray(success_msg) ? success_msg : [success_msg]).forEach(function(m){ %>
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+          <%= m %>
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+      <% }) %>
+    <% } %>
+    <% if (typeof error_msg !== 'undefined' && error_msg) { %>
+      <% (Array.isArray(error_msg) ? error_msg : [error_msg]).forEach(function(m){ %>
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+          <%= m %>
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+      <% }) %>
+    <% } %>
+
+    <div class="filter-card">
+      <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+        <div class="filter-title">
+          <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <circle cx="6" cy="6" r="2"></circle>
+            <circle cx="12" cy="12" r="2"></circle>
+            <circle cx="18" cy="6" r="2"></circle>
+            <path d="M6 8v10M12 14v4M18 8v10"></path>
+          </svg>
+          Filter and Sort
+        </div>
+      </div>
+      <form method="GET" action="/shopping" class="row g-2 align-items-center">
+        <div class="col-sm-5 col-md-3">
+          <select name="category" class="form-select" onchange="this.form.submit()">
+            <option value="" <%= !selectedCategory ? 'selected' : '' %>>All Products</option>
+            <option value="Fresh Fruits" <%= selectedCategory === 'Fresh Fruits' ? 'selected' : '' %>>Fresh Fruits</option>
+            <option value="Dairy Products" <%= selectedCategory === 'Dairy Products' ? 'selected' : '' %>>Dairy Products</option>
+            <option value="Vegetables" <%= selectedCategory === 'Vegetables' ? 'selected' : '' %>>Vegetables</option>
+            <option value="Meat" <%= selectedCategory === 'Meat' ? 'selected' : '' %>>Meat</option>
+            <option value="Seafood" <%= selectedCategory === 'Seafood' ? 'selected' : '' %>>Seafood</option>
+            <option value="Beverages" <%= selectedCategory === 'Beverages' ? 'selected' : '' %>>Beverages</option>
+            <option value="Snacks" <%= selectedCategory === 'Snacks' ? 'selected' : '' %>>Snacks</option>
+            <option value="Bakery" <%= selectedCategory === 'Bakery' ? 'selected' : '' %>>Bakery</option>
+            <option value="Frozen" <%= selectedCategory === 'Frozen' ? 'selected' : '' %>>Frozen</option>
+            <option value="Others" <%= selectedCategory === 'Others' ? 'selected' : '' %>>Others</option>
+          </select>
+        </div>
+      </form>
+    </div>
+
+    <div class="shop-header">
+      <span class="shop-pill"><%= searchQuery ? 'Results' : 'Bestseller' %></span>
+      <div class="fw-bold">Shop products</div>
+      <div class="text-muted small"><%= searchQuery ? ('Showing results for "' + searchQuery + '"') : 'Fresh picks and daily deals.' %></div>
+      <div class="ms-auto">
+        <% if (promos && promos.length) { %>
+          <div class="small text-muted">Active promos: <strong><%= promos.map(p => p.code).join(', ') %></strong></div>
+        <% } %>
+      </div>
+    </div>
+
+    <div class="row g-4">
+      <% if (products && products.length) { %>
+        <% products.forEach(function(product) { %>
+          <div class="col-12 col-sm-6 col-lg-3">
+            <div class="product-card h-100">
+              <% if (product.isBestseller) { %>
+                <span class="product-badge badge-best">Bestseller</span>
+              <% } else if (product.isNew) { %>
+                <span class="product-badge badge-new">New</span>
+              <% } %>
+              <form action="/wishlist/add/<%= product.id %>" method="POST" class="wish-btn" title="Add to wishlist">
+                <button type="submit" style="all:unset; display:flex; align-items:center; justify-content:center; width:100%; height:100%; cursor:pointer;">
+                  <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24">
+                    <path d="M12 21s-6.5-4.35-9-8.5C1.2 10 1 8.5 1 7a5 5 0 0 1 9-3 5 5 0 0 1 9 3c0 1.5-.2 3-2 5.5-2.5 4.15-9 8.5-9 8.5Z"/>
+                  </svg>
+                </button>
+              </form>
+              <% if (product.image) { %>
+                <img src="/images/<%= product.image %>" class="product-img" alt="<%= product.productName %>">
+              <% } %>
+              <div class="text-center">
+                <div class="product-meta mb-2">Crafted for happy meals</div>
+                <div class="product-title mb-1"><%= product.productName %></div>
+                <div class="product-price mb-2">From $<%= Number(product.price).toFixed(2) %></div>
+                <div class="text-muted small mb-3">
+                  <% if (product.quantity > 0) { %>
+                    In stock: <%= product.quantity %>
+                  <% } else { %>
+                    <span class="text-danger">Out of stock</span>
+                  <% } %>
+                </div>
+                <form action="/add-to-cart/<%= product.id %>" method="POST" class="d-flex gap-2 mb-2 align-items-center justify-content-center">
+                  <input type="number" name="quantity" min="1" value="1" class="form-control form-control-sm qty-input" aria-label="Quantity" <%= product.quantity > 0 ? '' : 'disabled' %>>
+                  <button class="cta-btn" type="submit" <%= product.quantity > 0 ? '' : 'disabled' %>>Add to cart</button>
+                </form>
+              </div>
+            </div>
+          </div>
+        <% }); %>
+      <% } else { %>
+        <div class="col-12"><div class="alert alert-secondary">No products available.</div></div>
+      <% } %>
+    </div>
+
+<%- include('partials/footer') %>

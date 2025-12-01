@@ -1,0 +1,84 @@
+<%- include('partials/header', { title: 'Cart', active: 'cart', user: user }) %>
+  <style>
+    .card-shell { background:#fff; border:1px solid #e5e7eb; border-radius:16px; box-shadow:0 12px 28px rgba(15,23,42,0.06); }
+    .item-thumb { width:72px; height:72px; object-fit:cover; border-radius:12px; }
+    .pill { display:inline-flex; align-items:center; gap:6px; padding:8px 12px; border-radius:999px; background:#e7f1ff; color:#0f172a; font-weight:600; }
+  </style>
+
+    <% if (typeof success_msg !== 'undefined' && success_msg) { %>
+      <% (Array.isArray(success_msg) ? success_msg : [success_msg]).forEach(function(m){ %>
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+          <%= m %>
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+      <% }) %>
+    <% } %>
+    <% if (typeof error_msg !== 'undefined' && error_msg) { %>
+      <% (Array.isArray(error_msg) ? error_msg : [error_msg]).forEach(function(m){ %>
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+          <%= m %>
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+      <% }) %>
+    <% } %>
+
+    <div class="d-flex align-items-center justify-content-between flex-wrap mb-3">
+      <div>
+        <div class="pill mb-2">Your cart</div>
+        <h2 class="fw-bold mb-1">Review and checkout</h2>
+        <p class="text-muted mb-0">Adjust quantities or continue shopping before you pay.</p>
+      </div>
+      <a href="/shopping" class="btn btn-outline-primary">Continue shopping</a>
+    </div>
+
+    <% if (!cart || cart.length === 0) { %>
+      <div class="card-shell p-4 text-center">
+        <p class="mb-2">Oh no! Your cart is empty.</p>
+        <a href="/shopping" class="btn btn-primary">Start shopping</a>
+      </div>
+    <% } else { %>
+      <div class="row g-3">
+        <div class="col-lg-8">
+          <div class="card-shell p-3">
+            <% let total = 0; %>
+            <% cart.forEach(function(item) { %>
+              <div class="d-flex align-items-center justify-content-between py-3 border-bottom">
+                <div class="d-flex align-items-center gap-3">
+                  <img src="/images/<%= item.image %>" alt="<%= item.productName %>" class="item-thumb">
+                  <div>
+                    <div class="fw-semibold"><%= item.productName %></div>
+                    <div class="text-muted">$<%= item.price.toFixed(2) %> each</div>
+                  </div>
+                </div>
+                <div class="text-end" style="min-width:220px;">
+                  <form action="/cart/update/<%= item.productId %>" method="POST" class="d-flex align-items-center justify-content-end gap-2 mb-2">
+                    <input type="number" name="quantity" min="0" value="<%= item.quantity %>" class="form-control" style="width:90px">
+                    <button class="btn btn-sm btn-primary" type="submit">Update</button>
+                  </form>
+                  <form action="/cart/remove/<%= item.productId %>" method="POST" class="text-end">
+                    <button class="btn btn-sm btn-outline-danger" type="submit">Remove</button>
+                  </form>
+                </div>
+                <div class="fw-bold" style="min-width:110px; text-align:right;">
+                  $<%= (item.price * item.quantity).toFixed(2) %>
+                </div>
+              </div>
+              <% total += item.price * item.quantity; %>
+            <% }); %>
+          </div>
+        </div>
+
+        <div class="col-lg-4">
+          <div class="card-shell p-3">
+            <div class="d-flex justify-content-between mb-2"><span class="text-muted">Subtotal</span><strong>$<%= total.toFixed(2) %></strong></div>
+            <div class="d-flex justify-content-between mb-3"><span class="text-muted">Estimated fees</span><span class="text-muted">Included</span></div>
+            <hr>
+            <div class="d-flex justify-content-between mb-3"><span class="fw-semibold">Total</span><span class="fw-bold fs-4">$<%= total.toFixed(2) %></span></div>
+            <a href="/checkout" class="btn btn-primary w-100 btn-lg">Proceed to checkout</a>
+            <p class="small text-muted mt-2 mb-0">Secure payment, loyalty redemption, and promo codes available at checkout.</p>
+          </div>
+        </div>
+      </div>
+    <% } %>
+
+<%- include('partials/footer') %>

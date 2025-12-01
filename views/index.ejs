@@ -1,0 +1,161 @@
+<%- include('partials/header', { title: 'Home', active: 'home', user: user, query: typeof q !== 'undefined' ? q : '' }) %>
+  <style>
+    :root {
+      --cream: #fff7ef;
+      --card: #ffffff;
+      --mint: #21a179;
+      --mint-dark: #158561;
+      --badge: #c8d5ff;
+      --text-main: #0f172a;
+      --text-muted: #6b7280;
+    }
+    body { background: var(--cream); }
+    .hero-nav {
+      background: #fff;
+      border: 1px solid rgba(0,0,0,0.04);
+      border-radius: 16px;
+      padding: 14px 20px;
+      margin-bottom: 18px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+    .hero-nav .pill {
+      background: #f2f5ff;
+      color: #3c4b86;
+      font-weight: 700;
+      border-radius: 999px;
+      padding: 8px 14px;
+      text-transform: uppercase;
+      font-size: 12px;
+      letter-spacing: 0.05em;
+    }
+    .product-card {
+      background: var(--card);
+      border-radius: 26px;
+      border: 1px solid rgba(0,0,0,0.04);
+      padding: 22px 18px 18px;
+      box-shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
+      position: relative;
+      overflow: hidden;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+    .product-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 24px 55px rgba(15, 23, 42, 0.12);
+    }
+    .product-badge {
+      position: absolute;
+      top: 12px;
+      left: 50%;
+      transform: translateX(-50%);
+      border-radius: 999px;
+      padding: 6px 14px;
+      font-weight: 700;
+      font-size: 12px;
+      box-shadow: 0 6px 14px rgba(15,23,42,0.08);
+    }
+    .badge-best { background: #e5e8ff; color:#4b5cc4; }
+    .badge-new { background: #fbd1dc; color:#d53f6a; }
+    .wish-btn {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      border: 1px solid rgba(0,0,0,0.08);
+      background: #fff;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: #0f172a;
+      box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
+    }
+    .wish-btn:hover { background: #f7f7f7; }
+    .product-img {
+      max-height: 180px;
+      object-fit: contain;
+      display: block;
+      margin: 28px auto 8px;
+    }
+    .product-meta { text-transform: uppercase; letter-spacing: 0.08em; font-size: 12px; color: var(--text-muted); }
+    .product-title { font-weight: 800; font-size: 20px; color: var(--text-main); }
+    .product-price { font-weight: 700; color: var(--text-main); }
+    .cta-btn {
+      background: var(--mint);
+      color: #fff;
+      border: none;
+      border-radius: 12px;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      padding: 12px 14px;
+      width: 100%;
+      text-transform: uppercase;
+    }
+    .cta-btn:hover { background: var(--mint-dark); color: #fff; }
+  </style>
+
+    <% if (typeof success_msg !== 'undefined' && success_msg) { %>
+      <% (Array.isArray(success_msg) ? success_msg : [success_msg]).forEach(function(m){ %>
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+          <%= m %>
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+      <% }) %>
+    <% } %>
+    <% if (typeof error_msg !== 'undefined' && error_msg) { %>
+      <% (Array.isArray(error_msg) ? error_msg : [error_msg]).forEach(function(m){ %>
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+          <%= m %>
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+      <% }) %>
+    <% } %>
+
+    <div class="hero-nav">
+      <span class="pill">Bestseller</span>
+      <div class="fw-bold">Fresh picks for today</div>
+      <div class="ms-auto">
+        <a class="btn btn-outline-dark btn-sm" href="/shopping">Shop all</a>
+      </div>
+    </div>
+
+    <div class="row g-4">
+      <% if (Array.isArray(featuredProducts) && featuredProducts.length) { %>
+        <% featuredProducts.forEach(function(product) { %>
+          <div class="col-12 col-sm-6 col-lg-3">
+            <div class="product-card h-100">
+              <% if (product.isBestseller) { %>
+                <span class="product-badge badge-best">Bestseller</span>
+              <% } else if (product.isNew) { %>
+                <span class="product-badge badge-new">New</span>
+              <% } %>
+              <form action="/wishlist/add/<%= product.id %>" method="POST" class="wish-btn" title="Add to wishlist">
+                <button type="submit" style="all:unset; display:flex; align-items:center; justify-content:center; width:100%; height:100%; cursor:pointer;">
+                  <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.6" viewBox="0 0 24 24">
+                    <path d="M12 21s-6.5-4.35-9-8.5C1.2 10 1 8.5 1 7a5 5 0 0 1 9-3 5 5 0 0 1 9 3c0 1.5-.2 3-2 5.5-2.5 4.15-9 8.5-9 8.5Z"/>
+                  </svg>
+                </button>
+              </form>
+              <% if (product.image) { %>
+                <img src="/images/<%= product.image %>" class="product-img" alt="<%= product.productName %>">
+              <% } %>
+              <div class="text-center">
+                <div class="product-meta mb-2">Gently cooked for everyone</div>
+                <div class="product-title mb-1"><%= product.productName %></div>
+                <div class="product-price mb-3">From $<%= Number(product.price).toFixed(2) %></div>
+                <form action="/add-to-cart/<%= product.id %>" method="POST" class="d-grid">
+                  <button class="cta-btn" type="submit">Add to cart</button>
+                </form>
+              </div>
+            </div>
+          </div>
+        <% }); %>
+      <% } else { %>
+        <div class="col-12"><div class="alert alert-secondary">Featured products will appear here once added.</div></div>
+      <% } %>
+    </div>
+
+<%- include('partials/footer') %>

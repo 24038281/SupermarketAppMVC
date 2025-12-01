@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title ? `${title} - Supermarket App` : 'Supermarket App' %></title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --brand: #0d6efd;
+      --brand-dark: #0b5ed7;
+      --ink: #0f172a;
+      --muted: #6b7280;
+      --surface: #ffffff;
+      --surface-muted: #f5f7fb;
+      --border: #e5e7eb;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: 'Plus Jakarta Sans', 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: radial-gradient(1200px circle at 20% 20%, rgba(13,110,253,0.08), transparent 40%),
+                  radial-gradient(900px circle at 80% 10%, rgba(45,212,191,0.08), transparent 38%),
+                  #f8fafc;
+      color: var(--ink);
+      min-height: 100vh;
+    }
+    a { color: inherit; text-decoration: none; }
+    .navbar-brand .brand-mark {
+      width: 38px;
+      height: 38px;
+      border-radius: 12px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, #0ea5e9, #0d6efd);
+      color: #fff;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      margin-right: 10px;
+      box-shadow: 0 12px 30px rgba(13,110,253,0.25);
+    }
+    .nav-surface {
+      background: rgba(255,255,255,0.9);
+      backdrop-filter: blur(8px);
+      box-shadow: 0 20px 40px rgba(15, 23, 42, 0.08);
+      border-bottom: 1px solid rgba(229, 231, 235, 0.7);
+    }
+    .nav-link {
+      font-weight: 600;
+      color: var(--muted);
+      padding: 10px 14px;
+      border-radius: 12px;
+    }
+    .nav-link.active, .nav-link:hover {
+      color: var(--ink);
+      background: rgba(13,110,253,0.08);
+    }
+    .pill-btn {
+      border-radius: 999px;
+      padding: 9px 16px;
+      font-weight: 700;
+    }
+    .ghost-btn {
+      background: rgba(13,110,253,0.08);
+      color: var(--brand);
+      border: 1px solid rgba(13,110,253,0.12);
+    }
+    .ghost-btn:hover { background: rgba(13,110,253,0.12); }
+    .search-wrap {
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: #fff;
+      box-shadow: 0 12px 30px rgba(15, 23, 42, 0.06);
+    }
+    .search-wrap input {
+      border: none;
+      background: transparent;
+      font-weight: 500;
+      color: var(--ink);
+    }
+    .search-wrap input:focus { box-shadow: none; }
+    .chip {
+      background: var(--surface-muted);
+      border: 1px solid var(--border);
+      color: var(--muted);
+      padding: 6px 10px;
+      border-radius: 10px;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    main { min-height: 75vh; }
+  </style>
+</head>
+<body>
+  <nav class="navbar navbar-expand-lg navbar-light nav-surface sticky-top py-3">
+    <div class="container-xl">
+      <a class="navbar-brand d-flex align-items-center fw-bold" href="/">
+        <span class="brand-mark">SM</span>
+        <div class="lh-1">
+          <div>Supermarket</div>
+          <small class="text-muted fw-semibold">Fresh every day</small>
+        </div>
+      </a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse gap-3" id="mainNav">
+        <form action="/search" method="GET" class="flex-grow-1 d-none d-lg-block">
+          <div class="input-group search-wrap">
+            <span class="input-group-text bg-transparent border-0 text-muted">
+              <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+                <circle cx="11" cy="11" r="7"></circle>
+                <path d="m16 16 4 4"></path>
+              </svg>
+            </span>
+            <input name="q" type="search" class="form-control py-2" placeholder="Search products, categories, deals..." value="<%= typeof query !== 'undefined' ? query : '' %>">
+            <button class="btn btn-primary px-4" type="submit">Search</button>
+          </div>
+        </form>
+        <ul class="navbar-nav ms-auto align-items-lg-center w-100 w-lg-auto gap-lg-2">
+          <li class="nav-item"><a class="nav-link <%= active === 'home' ? 'active' : '' %>" href="/">Home</a></li>
+          <li class="nav-item"><a class="nav-link <%= active === 'shop' ? 'active' : '' %>" href="/shopping">Shop</a></li>
+          <li class="nav-item"><a class="nav-link <%= active === 'membership' ? 'active' : '' %>" href="/membership">Membership</a></li>
+          <% if (user) { %>
+            <li class="nav-item"><a class="nav-link <%= active === 'wishlist' ? 'active' : '' %>" href="/wishlist">Wishlist</a></li>
+            <li class="nav-item"><a class="nav-link <%= active === 'cart' ? 'active' : '' %>" href="/cart">Cart</a></li>
+            <li class="nav-item"><a class="nav-link <%= active === 'dashboard' ? 'active' : '' %>" href="/dashboard">Dashboard</a></li>
+            <% if (user.isPrimaryAdmin) { %>
+              <li class="nav-item"><a class="nav-link" href="/admin/dashboard">Admin</a></li>
+            <% } %>
+            <li class="nav-item d-lg-none px-1">
+              <span class="badge text-bg-light w-100 text-start">Welcome, <%= user.username || user.name || user.email %></span>
+            </li>
+            <li class="nav-item"><a class="btn btn-outline-dark pill-btn w-100 w-lg-auto" href="/logout">Logout</a></li>
+          <% } else { %>
+            <li class="nav-item"><a class="nav-link <%= active === 'wishlist' ? 'active' : '' %>" href="/wishlist">Wishlist</a></li>
+            <li class="nav-item"><a class="nav-link <%= active === 'cart' ? 'active' : '' %>" href="/cart">Cart</a></li>
+            <li class="nav-item"><a class="btn ghost-btn pill-btn w-100 w-lg-auto" href="/login">Login</a></li>
+            <li class="nav-item"><a class="btn btn-primary pill-btn ms-lg-1 w-100 w-lg-auto" href="/register">Join free</a></li>
+          <% } %>
+        </ul>
+      </div>
+    </div>
+  </nav>
+  <div class="container-xl mt-3 d-lg-none">
+    <form action="/search" method="GET" class="w-100">
+      <div class="input-group search-wrap">
+        <span class="input-group-text bg-transparent border-0 text-muted">
+          <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+            <circle cx="11" cy="11" r="7"></circle>
+            <path d="m16 16 4 4"></path>
+          </svg>
+        </span>
+        <input name="q" type="search" class="form-control py-2" placeholder="Search products, categories, deals..." value="<%= typeof query !== 'undefined' ? query : '' %>">
+        <button class="btn btn-primary px-4" type="submit">Go</button>
+      </div>
+    </form>
+  </div>
+  <main class="py-4">
+    <div class="container-xl">

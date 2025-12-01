@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Invoice <%= typeof invoiceNumber !== 'undefined' ? invoiceNumber : ('#' + order.id) %></title>
+    <style>
+        * {
+            box-sizing: border-box;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+
+        body {
+            background: #f4f5f7;
+            margin: 0;
+            padding: 30px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .invoice-wrapper {
+            max-width: 900px;
+            width: 100%;
+            background: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.06);
+            padding: 30px 40px;
+        }
+
+        .invoice-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            border-bottom: 1px solid #e2e4ea;
+            padding-bottom: 16px;
+            margin-bottom: 20px;
+        }
+
+        .invoice-title {
+            font-size: 26px;
+            font-weight: 700;
+            margin: 0 0 4px;
+        }
+
+        .invoice-meta {
+            color: #6b7280;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 999px;
+            background: #e5f7eb;
+            color: #198754;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .section-title {
+            font-size: 18px;
+            margin: 20px 0 8px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 8px;
+            font-size: 14px;
+        }
+
+        th, td {
+            padding: 10px 12px;
+            text-align: left;
+        }
+
+        th {
+            background: #f3f4f6;
+            border-bottom: 1px solid #e5e7eb;
+            font-weight: 600;
+        }
+
+        tr:nth-child(even) {
+            background-color: #fafafa;
+        }
+
+        tr:nth-child(odd) td {
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .text-right {
+            text-align: right;
+        }
+
+        .summary-card {
+            margin-top: 24px;
+            margin-left: auto;
+            max-width: 320px;
+            border-radius: 10px;
+            background: #f9fafb;
+            padding: 16px 18px;
+            border: 1px solid #e5e7eb;
+        }
+
+        .summary-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 6px;
+            font-size: 14px;
+        }
+
+        .summary-row.total {
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px dashed #d1d5db;
+            font-weight: 700;
+            font-size: 15px;
+        }
+
+        .summary-label-muted {
+            color: #6b7280;
+        }
+
+        .discount {
+            color: #b91c1c;
+        }
+
+        .btn-back {
+            display: inline-block;
+            margin-top: 24px;
+            padding: 8px 16px;
+            font-size: 14px;
+            border-radius: 999px;
+            border: 1px solid #d1d5db;
+            color: #374151;
+            text-decoration: none;
+            transition: all 0.15s ease-in-out;
+            background: #ffffff;
+        }
+
+        .btn-back:hover {
+            background: #f3f4f6;
+            border-color: #9ca3af;
+        }
+
+        @media (max-width: 640px) {
+            body {
+                padding: 12px;
+            }
+
+            .invoice-wrapper {
+                padding: 20px;
+            }
+
+            .invoice-header {
+                flex-direction: column;
+                gap: 10px;
+            }
+
+            .summary-card {
+                max-width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="invoice-wrapper">
+
+    <!-- Header -->
+    <div class="invoice-header">
+        <div>
+            <p class="invoice-title">Invoice <%= typeof invoiceNumber !== 'undefined' ? invoiceNumber : ('#' + order.id) %></p>
+            <p class="invoice-meta">
+                Date:
+                <%= order.created_at && order.created_at.toLocaleString
+                    ? order.created_at.toLocaleString()
+                    : order.created_at %><br>
+                Customer: <strong><%= order.username %></strong><br>
+                Email: <%= order.email %>
+            </p>
+        </div>
+        <div class="invoice-meta" style="text-align:right;">
+            <span class="badge">Paid</span><br>
+            <span>Invoice: <%= typeof invoiceNumber !== 'undefined' ? invoiceNumber : ('#' + order.id) %></span><br>
+            <span>Supermarket App</span><br>
+            <span>Online Purchase</span>
+        </div>
+    </div>
+
+    <!-- Items -->
+    <h2 class="section-title">Order Items</h2>
+    <table>
+        <tr>
+            <th>Product</th>
+            <th class="text-right">Unit Price</th>
+            <th class="text-right">Qty</th>
+            <th class="text-right">Total</th>
+        </tr>
+        <% items.forEach(item => { %>
+            <tr>
+                <td><%= item.product_name %></td>
+                <td class="text-right">
+                    $<%= Number(item.unit_price || 0).toFixed(2) %>
+                </td>
+                <td class="text-right"><%= item.quantity %></td>
+                <td class="text-right">
+                    $<%= Number(item.line_total || 0).toFixed(2) %>
+                </td>
+            </tr>
+        <% }) %>
+    </table>
+
+    <!-- Summary -->
+    <div class="summary-card">
+        <div class="summary-row">
+            <span class="summary-label-muted">Subtotal</span>
+            <span>$<%= Number(order.subtotal || 0).toFixed(2) %></span>
+        </div>
+        <div class="summary-row">
+            <span class="summary-label-muted">Promo Discount</span>
+            <span class="discount">- $<%= Number(order.promo_discount || 0).toFixed(2) %></span>
+        </div>
+        <div class="summary-row">
+            <span class="summary-label-muted">Loyalty Discount</span>
+            <span class="discount">- $<%= Number(order.loyalty_discount || 0).toFixed(2) %></span>
+        </div>
+        <div class="summary-row total">
+            <span>Total Paid</span>
+            <span>$<%= Number(order.final_total || 0).toFixed(2) %></span>
+        </div>
+    </div>
+
+    <a class="btn-back" href="/orders">← Back to Orders</a>
+</div>
+</body>
+</html>

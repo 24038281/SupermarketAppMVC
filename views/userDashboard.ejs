@@ -1,0 +1,78 @@
+<%- include('partials/header', { title: 'Dashboard', active: 'dashboard', user: user }) %>
+  <style>
+    .hero { background:#0d6efd; color:#fff; border-radius:18px; padding:22px; box-shadow:0 18px 45px rgba(13,110,253,0.2); }
+    .stat-card { border:1px solid #e5e7eb; border-radius:14px; box-shadow:0 10px 24px rgba(15,23,42,0.08); }
+    .stat-icon { width:40px; height:40px; display:inline-flex; align-items:center; justify-content:center; border-radius:12px; font-weight:700; color:#0f172a; background:#e7f1ff; }
+    .action-card { border:1px solid #e5e7eb; border-radius:14px; padding:16px; height:100%; box-shadow:0 10px 24px rgba(15,23,42,0.08); }
+  </style>
+
+    <% if (typeof success_msg !== 'undefined' && success_msg) { %>
+      <% (Array.isArray(success_msg) ? success_msg : [success_msg]).forEach(function(m){ %>
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+          <%= m %>
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+      <% }) %>
+    <% } %>
+    <% if (typeof error_msg !== 'undefined' && error_msg) { %>
+      <% (Array.isArray(error_msg) ? error_msg : [error_msg]).forEach(function(m){ %>
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+          <%= m %>
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+      <% }) %>
+    <% } %>
+
+    <div class="hero mb-4 d-flex justify-content-between align-items-center flex-wrap gap-2">
+      <div>
+        <p class="mb-1 text-uppercase fw-semibold" style="letter-spacing:0.08em; opacity:0.9;">Your dashboard</p>
+        <h2 class="fw-bold mb-1">Hi <%= user && (user.username || user.email) %></h2>
+        <p class="mb-0" style="opacity:0.9;">Track your membership, orders, wishlist, and rewards.</p>
+      </div>
+      <div class="text-end">
+        <div class="badge bg-light text-dark">Tier: <strong><%= stats.membershipTier %></strong></div>
+        <div class="badge bg-warning text-dark ms-2">Loyalty: <%= stats.loyaltyPoints %> pts</div>
+      </div>
+    </div>
+
+    <div class="row g-3 mb-3">
+      <div class="col-md-3"><div class="stat-card p-3 d-flex align-items-center gap-3"><div class="stat-icon">Cart</div><div><div class="text-muted small">Cart items</div><div class="fs-4 fw-bold"><%= stats.cartCount %></div></div></div></div>
+      <div class="col-md-3"><div class="stat-card p-3 d-flex align-items-center gap-3"><div class="stat-icon">Wish</div><div><div class="text-muted small">Wishlist</div><div class="fs-4 fw-bold"><%= stats.wishlistCount %></div></div></div></div>
+      <div class="col-md-3"><div class="stat-card p-3 d-flex align-items-center gap-3"><div class="stat-icon">Tier</div><div><div class="text-muted small">Membership</div><div class="fs-4 fw-bold"><%= stats.membershipTier %></div></div></div></div>
+      <div class="col-md-3"><div class="stat-card p-3 d-flex align-items-center gap-3"><div class="stat-icon">Pts</div><div><div class="text-muted small">Loyalty Points</div><div class="fs-4 fw-bold"><%= stats.loyaltyPoints %></div></div></div></div>
+    </div>
+
+    <div class="row g-3">
+      <div class="col-md-4">
+        <div class="action-card">
+          <h5 class="fw-semibold">Quick shopping</h5>
+          <p class="text-muted small">Browse catalog, add to cart, and redeem promos.</p>
+          <div class="d-grid gap-2">
+            <a class="btn btn-primary" href="/shopping">Shop now</a>
+            <a class="btn btn-outline-primary" href="/cart">Go to cart</a>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="action-card">
+          <h5 class="fw-semibold">Membership & loyalty</h5>
+          <p class="text-muted small">Check benefits, tiers, and redeem points at checkout.</p>
+          <div class="d-grid gap-2">
+            <a class="btn btn-outline-success" href="/membership">View membership</a>
+            <a class="btn btn-outline-secondary" href="/checkout">Redeem at checkout</a>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="action-card">
+          <h5 class="fw-semibold">Orders & wishlist</h5>
+          <p class="text-muted small">Review past orders or plan future purchases.</p>
+          <div class="d-grid gap-2">
+            <a class="btn btn-outline-dark" href="/orders">My orders</a>
+            <a class="btn btn-outline-primary" href="/wishlist">Wishlist</a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+<%- include('partials/footer') %>

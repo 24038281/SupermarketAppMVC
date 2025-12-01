@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <title>Admin - Membership Plans</title>
+  <style>
+    body { background:#f6f8fb; }
+    .navbar-admin { background: linear-gradient(90deg, #0d6efd, #34c759); }
+    .card-rounded { border-radius:16px; }
+    .badge-role { font-weight:700; }
+  </style>
+</head>
+<body>
+  <nav class="navbar navbar-expand-sm navbar-dark navbar-admin mb-3">
+    <div class="container-fluid">
+      <a class="navbar-brand fw-bold" href="/admin/dashboard">Admin</a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#adminNav">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="adminNav">
+        <ul class="navbar-nav me-auto">
+          <li class="nav-item"><a class="nav-link" href="/admin/dashboard">Dashboard</a></li>
+          <li class="nav-item"><a class="nav-link" href="/admin/products">Products</a></li>
+          <li class="nav-item"><a class="nav-link" href="/admin/promocodes">Promos</a></li>
+          <li class="nav-item"><a class="nav-link active" aria-current="page" href="/admin/membership-plans">Membership</a></li>
+          <li class="nav-item"><a class="nav-link" href="/admin/invoices">Invoices</a></li>
+        </ul>
+        <span class="navbar-text text-light me-2">Hello, <%= user && (user.username || user.email) %></span>
+        <span class="badge bg-light text-dark badge-role">Admin</span>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container mb-4">
+    <% if (typeof success_msg !== 'undefined' && success_msg) { %>
+      <% (Array.isArray(success_msg) ? success_msg : [success_msg]).forEach(function(m){ %>
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+          <%= m %>
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+      <% }) %>
+    <% } %>
+    <% if (typeof error_msg !== 'undefined' && error_msg) { %>
+      <% (Array.isArray(error_msg) ? error_msg : [error_msg]).forEach(function(m){ %>
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+          <%= m %>
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+      <% }) %>
+    <% } %>
+
+    <div class="row g-3">
+      <div class="col-lg-6">
+        <div class="card card-rounded shadow-sm h-100">
+          <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <h5 class="mb-0">Membership plans</h5>
+              <span class="badge bg-primary"><%= plans.length %> plans</span>
+            </div>
+            <% if (plans && plans.length) { %>
+              <div class="table-responsive">
+                <table class="table table-sm align-middle">
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>Multiplier</th>
+                      <th>Annual fee</th>
+                      <th>Active</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <% plans.forEach(function(plan){ %>
+                      <tr>
+                        <td class="fw-semibold"><%= plan.name %></td>
+                        <td>x<%= plan.points_multiplier %></td>
+                        <td>$<%= Number(plan.annual_fee || 0).toFixed(2) %></td>
+                        <td><span class="badge <%= plan.active ? 'bg-success' : 'bg-secondary' %>"><%= plan.active ? 'Yes' : 'No' %></span></td>
+                        <td>
+                          <a href="/admin/membership-plans/<%= plan.id %>/edit" class="btn btn-sm btn-outline-primary">Edit</a>
+                        </td>
+                      </tr>
+                    <% }); %>
+                  </tbody>
+                </table>
+              </div>
+            <% } else { %>
+              <div class="alert alert-secondary mb-0">No plans yet.</div>
+            <% } %>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-lg-6">
+        <div class="card card-rounded shadow-sm h-100">
+          <div class="card-body">
+            <h5 class="mb-3">Create a new plan</h5>
+            <form method="POST" action="/admin/membership-plans" class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label">Name</label>
+                <input name="name" type="text" class="form-control" required>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Points multiplier</label>
+                <input name="points_multiplier" type="number" step="0.1" min="0.1" class="form-control" required>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Annual fee</label>
+                <input name="annual_fee" type="number" step="0.01" min="0" class="form-control" placeholder="0">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Min annual spend</label>
+                <input name="min_annual_spend" type="number" step="0.01" min="0" class="form-control" placeholder="optional">
+              </div>
+              <div class="col-12">
+                <label class="form-label">Benefits</label>
+                <textarea name="benefits" class="form-control" rows="2" placeholder="Short perks summary"></textarea>
+              </div>
+              <div class="col-12 form-check">
+                <input class="form-check-input" type="checkbox" name="active" id="planActive" value="1" checked>
+                <label class="form-check-label" for="planActive">Active</label>
+              </div>
+              <div class="col-12">
+                <button type="submit" class="btn btn-primary">Create plan</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card card-rounded shadow-sm mt-4">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h5 class="mb-0">Members overview</h5>
+          <span class="badge bg-info text-dark"><%= members.length %> users</span>
+        </div>
+        <% if (members && members.length) { %>
+          <div class="table-responsive">
+            <table class="table table-striped align-middle">
+              <thead>
+                <tr>
+                  <th>User</th>
+                  <th>Email</th>
+                  <th>Tier</th>
+                  <th class="text-end">Points</th>
+                </tr>
+              </thead>
+              <tbody>
+                <% members.forEach(function(m){ %>
+                  <tr>
+                    <td><%= m.username %></td>
+                    <td><%= m.email %></td>
+                    <td><span class="badge bg-light text-dark border"><%= m.membership_tier || 'Basic' %></span></td>
+                    <td class="text-end fw-semibold"><%= m.loyalty_points %></td>
+                  </tr>
+                <% }); %>
+              </tbody>
+            </table>
+          </div>
+        <% } else { %>
+          <div class="alert alert-secondary mb-0">No users found.</div>
+        <% } %>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

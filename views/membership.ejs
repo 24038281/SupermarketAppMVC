@@ -1,0 +1,116 @@
+<%- include('partials/header', { title: 'Membership', active: 'membership', user: user }) %>
+  <style>
+    .pill { display:inline-flex; align-items:center; gap:8px; padding:10px 14px; border-radius:999px; background:#e7f1ff; color:#0f172a; font-weight:600; }
+    .card-plan { border:1px solid #e5e7eb; border-radius:14px; box-shadow:0 12px 28px rgba(15,23,42,0.06); }
+    .badge-pill { border-radius:999px; padding:6px 10px; font-weight:700; }
+  </style>
+
+    <% if (typeof success_msg !== 'undefined' && success_msg) { %>
+      <% (Array.isArray(success_msg) ? success_msg : [success_msg]).forEach(function(m){ %>
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+          <%= m %>
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+      <% }) %>
+    <% } %>
+    <% if (typeof error_msg !== 'undefined' && error_msg) { %>
+      <% (Array.isArray(error_msg) ? error_msg : [error_msg]).forEach(function(m){ %>
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+          <%= m %>
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+      <% }) %>
+    <% } %>
+
+    <div class="d-flex align-items-center justify-content-between mb-3">
+      <div>
+        <div class="pill mb-2">Membership & loyalty</div>
+        <h2 class="fw-bold mb-1">Choose a plan that fits you</h2>
+        <p class="text-muted mb-0">Earn points on every purchase and unlock perks.</p>
+      </div>
+      <% if (user && user.membership_tier) { %>
+        <div class="text-end">
+          <div class="badge bg-primary">Your tier: <%= user.membership_tier %></div>
+          <div class="badge bg-warning text-dark ms-2">Points: <%= user.loyalty_points || 0 %></div>
+        </div>
+      <% } %>
+    </div>
+
+    <div class="row g-3">
+      <% if (plans && plans.length) { %>
+        <% plans.forEach(function(plan) { %>
+          <div class="col-md-4">
+            <div class="card card-plan h-100">
+              <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                  <h5 class="fw-bold mb-0"><%= plan.name %></h5>
+                  <span class="badge-pill bg-light text-dark border">x<%= plan.points_multiplier %> pts</span>
+                </div>
+                <% if (plan.description) { %><p class="text-muted small"><%= plan.description %></p><% } %>
+                <ul class="text-muted small mb-3">
+                  <% if (plan.benefits) { %>
+                    <% plan.benefits.split('\n').forEach(function(line){ if(line.trim()){ %>
+                      <li><%= line %></li>
+                    <% }}); %>
+                  <% } else { %>
+                    <li>Earn points on every order.</li>
+                    <li>Priority promos and seasonal deals.</li>
+                    <li>Tiered rewards with higher multipliers.</li>
+                  <% } %>
+                </ul>
+                <%
+                  const annualFee = Number(plan.annual_fee) || 0;
+                  const minSpend = Number(plan.min_annual_spend);
+                %>
+                <div class="mb-2"><strong>Annual fee:</strong> $<%= annualFee.toFixed(2) %></div>
+                <% if (!isNaN(minSpend) && minSpend > 0) { %><div class="text-muted small mb-2">Min annual spend: $<%= minSpend %></div><% } %>
+                <button class="btn btn-primary w-100" type="button" disabled>Contact support to upgrade</button>
+              </div>
+            </div>
+          </div>
+        <% }); %>
+      <% } else { %>
+        <div class="col-12"><div class="alert alert-secondary">No membership plans available yet.</div></div>
+      <% } %>
+    </div>
+
+    <%
+      const rewards = [
+        { title: '$5 Off', points: 100, image: '/images/rewards/5-off.png' },
+        { title: '$15 Off', points: 250, image: '/images/rewards/15-off.png' },
+        { title: '$25 Off', points: 400, image: '/images/rewards/25-off.png' }
+      ];
+      const pointsAvailable = (typeof userPoints !== 'undefined') ? userPoints : ((user && user.loyalty_points) || 0);
+    %>
+
+    <div class="mt-4">
+      <div class="d-flex align-items-center gap-2 mb-2">
+        <div class="pill mb-0">Rewards</div>
+        <h4 class="fw-bold mb-0">Rewards you can redeem with your points</h4>
+      </div>
+      <p class="text-muted">Use your points to claim these perks. Your points: <strong><%= pointsAvailable %></strong></p>
+      <div class="row g-3">
+        <% rewards.forEach(function(r){ 
+             const enough = pointsAvailable >= r.points;
+        %>
+          <div class="col-sm-6 col-lg-3">
+            <div class="card h-100">
+              <img src="<%= r.image %>" class="card-img-top" alt="<%= r.title %>" style="object-fit:cover; height:160px;">
+              <div class="card-body d-flex flex-column">
+                <h6 class="fw-semibold mb-1"><%= r.title %></h6>
+                <div class="fs-5 fw-bold text-primary mb-3"><%= r.points %> points</div>
+                <% if (enough) { %>
+                  <div class="text-success fw-semibold">You are eligible to redeem this reward at checkout.</div>
+                <% } else { 
+                     const needed = r.points - pointsAvailable;
+                %>
+                  <div class="text-muted">You need <%= needed %> more points to redeem this reward.</div>
+                <% } %>
+              </div>
+            </div>
+          </div>
+        <% }); %>
+      </div>
+    </div>
+
+<%- include('partials/footer') %>

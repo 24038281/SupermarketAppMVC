@@ -1,0 +1,66 @@
+<%- include('partials/header', { title: 'Wishlist', active: 'wishlist', user: user }) %>
+  <style>
+    .card-shell { background:#fff; border:1px solid #e5e7eb; border-radius:16px; box-shadow:0 12px 28px rgba(15,23,42,0.06); }
+    .item-thumb { width:100%; height:160px; object-fit:cover; border-radius:12px; }
+    .pill { display:inline-flex; align-items:center; gap:6px; padding:8px 12px; border-radius:999px; background:#e7f1ff; color:#0f172a; font-weight:600; }
+  </style>
+
+    <% if (typeof success_msg !== 'undefined' && success_msg) { %>
+      <% (Array.isArray(success_msg) ? success_msg : [success_msg]).forEach(function(m){ %>
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+          <%= m %>
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+      <% }) %>
+    <% } %>
+    <% if (typeof error_msg !== 'undefined' && error_msg) { %>
+      <% (Array.isArray(error_msg) ? error_msg : [error_msg]).forEach(function(m){ %>
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+          <%= m %>
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+      <% }) %>
+    <% } %>
+
+    <div class="d-flex align-items-center justify-content-between flex-wrap mb-3">
+      <div>
+        <div class="pill mb-2">Wishlist</div>
+        <h2 class="fw-bold mb-1">Save for later</h2>
+        <p class="text-muted mb-0">Keep items handy and move them to your cart when ready.</p>
+      </div>
+      <a href="/shopping" class="btn btn-outline-primary">Continue shopping</a>
+    </div>
+
+    <% if (!wishlist || wishlist.length === 0) { %>
+      <div class="card-shell p-4 text-center">
+        <p class="mb-2">You have no items in your wishlist.</p>
+        <a href="/shopping" class="btn btn-primary">Browse products</a>
+      </div>
+    <% } else { %>
+      <div class="row g-3">
+        <% wishlist.forEach(function(item) { %>
+          <div class="col-12 col-md-4 col-lg-3">
+            <div class="card-shell p-2 h-100 d-flex flex-column">
+              <% if (item.image) { %>
+                <img src="/images/<%= item.image %>" alt="<%= item.productName %>" class="item-thumb mb-2">
+              <% } %>
+              <div class="flex-grow-1 d-flex flex-column">
+                <h6 class="fw-semibold mb-1"><%= item.productName %></h6>
+                <p class="text-muted small mb-2">$<%= item.price %></p>
+                <div class="mt-auto">
+                  <form action="/add-to-cart/<%= item.productId %>" method="POST" class="d-flex mb-2">
+                    <input type="number" name="quantity" min="1" value="1" class="form-control form-control-sm me-1">
+                    <button type="submit" class="btn btn-sm btn-primary">Add to cart</button>
+                  </form>
+                  <form action="/wishlist/remove/<%= item.productId %>" method="POST">
+                    <button type="submit" class="btn btn-sm btn-outline-danger w-100">Remove</button>
+                  </form>
+                </div>
+              </div>
+            </div>
+          </div>
+        <% }); %>
+      </div>
+    <% } %>
+
+<%- include('partials/footer') %>

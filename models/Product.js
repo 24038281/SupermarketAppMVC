@@ -20,6 +20,7 @@ function getProductsWithBadges(options, callback) {
   const opts = options || {};
   const where = [];
   const params = [];
+  const orderClause = 'ORDER BY products.id ASC';
 
   if (opts.category) {
     where.push('category = ?');
@@ -34,7 +35,13 @@ function getProductsWithBadges(options, callback) {
   const limitClause = opts.limit ? 'LIMIT ?' : '';
   if (opts.limit) params.push(Number(opts.limit));
 
-  const productSql = `SELECT * FROM products ${whereClause} ${limitClause}`;
+  const productSql = `
+    SELECT products.*
+    FROM products
+    ${whereClause}
+    ${orderClause}
+    ${limitClause}
+  `;
 
   getBestsellerIds((bestErr, bestsellerSet) => {
     if (bestErr) return callback(bestErr);

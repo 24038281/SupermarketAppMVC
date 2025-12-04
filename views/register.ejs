@@ -1,68 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-    <title>Supermarket App</title>
-  </head>
-  <body>
-      <nav class="navbar navbar-expand-sm bg-dark navbar-dark">
-        <div class="container-fluid">
-          <a class="navbar-brand" href="/">Supermarket App</a>
-          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#collapsibleNavbar">
-            <span class="navbar-toggler-icon"></span>
-          </button>
-          <div class="collapse navbar-collapse" id="collapsibleNavbar">
-            <ul class="navbar-nav">
-              <li class="nav-item">
-                <a class="nav-link" href="/register">Register</a>
-              </li> 
-              <li class="nav-item">
-                <a class="nav-link" href="/Login">Login</a>
-              </li> 
-            </ul>
-          </div>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <title>Register - Supermarket App</title>
+  <style>
+    body {
+      background: radial-gradient(circle at 20% 20%, #f1f5ff, #f8fbff 35%, #ffffff);
+      min-height: 100vh;
+      color: #0f172a;
+    }
+    .auth-wrapper {
+      max-width: 520px;
+      margin: 40px auto 60px;
+    }
+    .logo-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 16px;
+      border-radius: 999px;
+      background: #0d6efd;
+      color: #fff;
+      text-decoration: none;
+      font-weight: 700;
+      box-shadow: 0 8px 30px rgba(13,110,253,0.25);
+    }
+    .logo-pill span.icon {
+      display: inline-flex;
+      width: 32px;
+      height: 32px;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      background: #fff;
+      color: #0d6efd;
+      font-weight: 800;
+    }
+    .auth-card {
+      border: 1px solid #e5e7eb;
+      border-radius: 18px;
+      box-shadow: 0 18px 48px rgba(15,23,42,0.06);
+      background: #fff;
+      padding: 28px 26px 30px;
+    }
+    .form-control {
+      border-radius: 12px;
+      padding: 12px 14px;
+      border: 1px solid #e5e7eb;
+    }
+    .btn-primary {
+      border-radius: 14px;
+      padding: 12px 16px;
+      font-weight: 600;
+    }
+    .ghost-link {
+      text-decoration: none;
+      font-weight: 600;
+      color: #0f172a;
+    }
+    .ghost-link:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="d-flex justify-content-between align-items-center pt-4">
+      <a class="logo-pill" href="/">
+        <span class="icon">SM</span>
+        <span>Supermarket</span>
+      </a>
+      <div>
+        <a href="/shopping" class="ghost-link me-3">Shop</a>
+        <a href="/login" class="ghost-link">Login</a>
+      </div>
+    </div>
+
+    <div class="auth-wrapper">
+      <div class="mb-3 text-center">
+        <h2 class="fw-bold mb-1">Create your account</h2>
+        <p class="text-muted mb-0">Join and start shopping today</p>
+      </div>
+
+      <% if (messages && messages.length > 0) { %>
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+          <% messages.forEach(function(message) { %>
+            <div><%= message %></div>
+          <% }); %>
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
         </div>
-      </nav>
-    <div class="container">
-        <h1 class="mt-5">Register</h1>
-        <% if (messages && messages.length > 0) { %>
-            <div class="alert alert-danger">
-                <% messages.forEach(function(message) { %>
-                    <p><%= message %></p>
-                <% }); %>
-            </div>
-        <% } %>
-        <form action="/register" method="POST" class="mt-4">
-            <div class="form-group">
-                <label for="username">Username:</label>
+      <% } %>
+
+      <div class="auth-card">
+        <form action="/register" method="POST" class="mt-1">
+            <div class="mb-3">
+                <label for="username" class="form-label fw-semibold">Username</label>
                 <input type="text" id="username" name="username" class="form-control" required 
                 <% if (formData && formData.username) { %> value="<%= formData.username %>" <% } else { %> value="" <% } %>>
             </div>
-            <div class="form-group">
-                <label for="email">Email:</label>
+            <div class="mb-3">
+                <label for="email" class="form-label fw-semibold">Email</label>
                 <input type="email" id="email" name="email" class="form-control" required 
                 <% if (formData && formData.email) { %> value="<%= formData.email %>" <% } else { %> value="" <% } %>>
             </div>
-            <div class="form-group">
-                <label for="password">Password:</label>
-                <input type="password" id="password" name="password" class="form-control" required>
+            <div class="mb-3">
+                <label for="password" class="form-label fw-semibold">Password</label>
+                <input type="password" id="password" name="password" class="form-control" placeholder="••••••••" required>
             </div>
-            <div class="form-group">
-                <label for="address">Address:</label>
+            <div class="mb-3">
+                <label for="address" class="form-label fw-semibold">Address</label>
                 <input type="text" id="address" name="address" class="form-control" required 
                 <% if (formData && formData.address) { %> value="<%= formData.address %>" <% } else { %> value="" <% } %>>
             </div>
-            <div class="form-group">
-                <label for="contact">Contact Number:</label>
+            <div class="mb-3">
+                <label for="contact" class="form-label fw-semibold">Contact Number</label>
                 <input type="text" id="contact" name="contact" class="form-control" required 
                 <% if (formData && formData.contact) { %> value="<%= formData.contact %>" <% } else { %> value="" <% } %>>
             </div>
-            <div class="form-group">
-                <p class="text-muted mb-2">New accounts are created as standard users. Admin access is reserved for the primary admin.</p>
+            <div class="mb-3">
+                <p class="text-muted mb-0">New accounts are created as standard users. Admin access is reserved for the primary admin.</p>
             </div>
-            <button type="submit" class="btn btn-primary">Register</button>
+            <div class="d-grid gap-2">
+              <button type="submit" class="btn btn-primary w-100">Register</button>
+              <a href="/login" class="ghost-link text-center">Already have an account? Login</a>
+            </div>
         </form>
+      </div>
     </div>
+  </div>
 </body>
 </html>

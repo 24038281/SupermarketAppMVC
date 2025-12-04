@@ -179,7 +179,7 @@
             <tbody>
             <% orders.forEach(order => { %>
                 <tr>
-                    <td class="col-id"><span class="badge"><%= typeof order.invoiceNumber !== 'undefined' ? order.invoiceNumber : ('#' + order.id) %></span></td>
+                    <td class="col-id"><span class="badge"><%= order.invoiceNumber || ('#' + (order.order_id || order.id)) %></span></td>
                     <td><%= order.username %></td>
                     <td class="col-email"><%= order.email %></td>
                     <td class="col-date">

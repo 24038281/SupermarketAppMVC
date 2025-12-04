@@ -127,10 +127,12 @@
           <li class="nav-item"><a class="nav-link <%= active === 'shop' ? 'active' : '' %>" href="/shopping">Shop</a></li>
           <li class="nav-item"><a class="nav-link <%= active === 'membership' ? 'active' : '' %>" href="/membership">Membership</a></li>
           <% if (user) { %>
-            <li class="nav-item"><a class="nav-link <%= active === 'wishlist' ? 'active' : '' %>" href="/wishlist">Wishlist</a></li>
-            <li class="nav-item"><a class="nav-link <%= active === 'cart' ? 'active' : '' %>" href="/cart">Cart</a></li>
-            <li class="nav-item"><a class="nav-link <%= active === 'dashboard' ? 'active' : '' %>" href="/dashboard">Dashboard</a></li>
-            <% if (user.isPrimaryAdmin) { %>
+            <% if (!user.isPrimaryAdmin) { %>
+              <li class="nav-item"><a class="nav-link <%= active === 'wishlist' ? 'active' : '' %>" href="/wishlist">Wishlist</a></li>
+              <li class="nav-item"><a class="nav-link <%= active === 'cart' ? 'active' : '' %>" href="/cart">Cart</a></li>
+              <li class="nav-item"><a class="nav-link <%= active === 'orders' ? 'active' : '' %>" href="/orders">Purchase History</a></li>
+              <li class="nav-item"><a class="nav-link <%= active === 'dashboard' ? 'active' : '' %>" href="/dashboard">Dashboard</a></li>
+            <% } else { %>
               <li class="nav-item"><a class="nav-link" href="/admin/dashboard">Admin</a></li>
             <% } %>
             <li class="nav-item d-lg-none px-1">

@@ -49,6 +49,70 @@ function formatInvoiceNumber(id) {
     const base = 108000; // keeps numbers sequential but in the 108k range
     return `#${base + num}`;
 }
+const ORDER_DELIVERY_COLUMNS = {
+    customer_name: 'VARCHAR(255)',
+    customer_contact: 'VARCHAR(50)',
+    delivery_address: 'VARCHAR(255)',
+    postal_code: 'VARCHAR(20)',
+    payment_method: 'VARCHAR(50)',
+    order_notes: 'TEXT',
+    delivery_date: 'DATE',
+    delivery_time: 'VARCHAR(50)'
+};
+const ALLOWED_DELIVERY_SLOTS = [
+    '10am – 12pm',
+    '12pm – 2pm',
+    '2pm – 4pm',
+    '6pm – 8pm'
+];
+let orderDeliveryColumnsEnsured = false;
+function ensureOrderDeliveryColumns(callback) {
+    if (orderDeliveryColumnsEnsured) return callback();
+    connection.query('SHOW COLUMNS FROM orders', (err, columns) => {
+        if (err) return callback(err);
+
+        const existing = new Set((columns || []).map(col => col.Field));
+        const missing = Object.keys(ORDER_DELIVERY_COLUMNS).filter(col => !existing.has(col));
+
+        if (!missing.length) {
+            orderDeliveryColumnsEnsured = true;
+            return callback();
+        }
+
+        const alterParts = missing.map(col => `ADD COLUMN ${col} ${ORDER_DELIVERY_COLUMNS[col]} NULL`);
+        const alterSql = `ALTER TABLE orders ${alterParts.join(', ')}`;
+
+        connection.query(alterSql, (alterErr) => {
+            if (alterErr) return callback(alterErr);
+            orderDeliveryColumnsEnsured = true;
+            callback();
+        });
+    });
+}
+const INVOICE_COLUMNS = {
+    subtotal: 'DECIMAL(10,2)',
+    final_total: 'DECIMAL(10,2)'
+};
+let invoiceColumnsEnsured = false;
+function ensureInvoiceColumns(callback) {
+    if (invoiceColumnsEnsured) return callback();
+    connection.query('SHOW COLUMNS FROM invoices', (err, columns) => {
+        if (err) return callback(err);
+        const existing = new Set((columns || []).map(col => col.Field));
+        const missing = Object.keys(INVOICE_COLUMNS).filter(col => !existing.has(col));
+        if (!missing.length) {
+            invoiceColumnsEnsured = true;
+            return callback();
+        }
+        const alterParts = missing.map(col => `ADD COLUMN ${col} ${INVOICE_COLUMNS[col]} NULL`);
+        const alterSql = `ALTER TABLE invoices ${alterParts.join(', ')}`;
+        connection.query(alterSql, (alterErr) => {
+            if (alterErr) return callback(alterErr);
+            invoiceColumnsEnsured = true;
+            callback();
+        });
+    });
+}
 
 const app = express();
 
@@ -178,13 +242,15 @@ app.get('/', (req, res) => {
 // =====================
 app.get('/shopping', checkAuthenticated, (req, res) => {
     const category = (req.query.category || '').trim();
+    const rawSort = (req.query.sort || '').trim();
+    const sort = rawSort === 'price_asc' || rawSort === 'price_desc' ? rawSort : '';
     const promoSql = `
         SELECT * FROM promocodes
         WHERE active = 1
           AND (starts_at IS NULL OR starts_at <= NOW())
           AND (expires_at IS NULL OR expires_at >= NOW())
     `;
-    Product.getProductsWithBadges({ category }, (error, results) => {
+    Product.getProductsWithBadges({ category, sort }, (error, results) => {
         if (error) throw error;
         connection.query(promoSql, (pErr, promos) => {
             if (pErr) throw pErr;
@@ -193,7 +259,8 @@ app.get('/shopping', checkAuthenticated, (req, res) => {
                 products: results,
                 searchQuery: null,
                 promos: promos || [],
-                selectedCategory: category
+                selectedCategory: category,
+                selectedSort: sort || ''
             });
         });
     });
@@ -204,6 +271,8 @@ app.get('/shopping', checkAuthenticated, (req, res) => {
 // =====================
 app.get('/search', (req, res) => {
     const q = (req.query.q || '').trim();
+    const rawSort = (req.query.sort || '').trim();
+    const sort = rawSort === 'price_asc' || rawSort === 'price_desc' ? rawSort : '';
 
     // Basic validation
     if (!q) return res.redirect('/shopping');
@@ -223,7 +292,7 @@ app.get('/search', (req, res) => {
           AND (expires_at IS NULL OR expires_at >= NOW())
     `;
 
-    Product.getProductsWithBadges({ search: q }, (err, results) => {
+    Product.getProductsWithBadges({ search: q, sort }, (err, results) => {
         if (err) {
             console.error('Search query error:', err);
             req.flash('error', 'Search failed - please try again');
@@ -240,7 +309,8 @@ app.get('/search', (req, res) => {
                 products: results,
                 searchQuery: q,
                 promos: promos || [],
-                selectedCategory: ''
+                selectedCategory: '',
+                selectedSort: sort || ''
             });
         });
     });
@@ -250,7 +320,7 @@ app.get('/search', (req, res) => {
 // Cart
 // =====================
 
-// Add to cart
+
 // Add to cart
 app.post('/add-to-cart/:id', checkAuthenticated, (req, res) => {
     const productId = parseInt(req.params.id);
@@ -417,14 +487,136 @@ app.post('/wishlist/remove/:id', checkAuthenticated, (req, res) => {
 });
 
 // =====================
-// Orders (stub)
+// Orders / Purchase History
 // =====================
 app.get('/orders', checkAuthenticated, (req, res) => {
-    // TODO: Replace with real orders from DB
-    const orders = [];
-    res.render('orders', {
-        user: req.session.user,
-        orders
+    const userId = req.session.user && req.session.user.id;
+    if (!userId) {
+        req.flash('error', 'You must be logged in to view orders.');
+        return res.redirect('/login');
+    }
+
+    const orderSql = `
+        SELECT o.*, u.username
+        FROM orders o
+        JOIN users u ON o.user_id = u.id
+        WHERE o.user_id = ?
+        ORDER BY o.created_at DESC
+    `;
+    connection.query(orderSql, [userId], (err, orders) => {
+        if (err) {
+            console.error('Failed to load orders', err);
+            req.flash('error', 'Unable to load your orders right now.');
+            return res.render('purchasehistory', { user: req.session.user, orders: [] });
+        }
+        const orderList = orders || [];
+        if (!orderList.length) {
+            return res.render('purchasehistory', { user: req.session.user, orders: [] });
+        }
+
+        const orderIds = orderList.map(o => o.id);
+        const itemsSql = `
+            SELECT oi.*, p.image
+            FROM order_items oi
+            LEFT JOIN products p ON oi.product_id = p.id
+            WHERE oi.order_id IN (?)
+            ORDER BY oi.order_id ASC, oi.id ASC
+        `;
+        connection.query(itemsSql, [orderIds], (iErr, items) => {
+            if (iErr) {
+                console.error('Failed to load order items', iErr);
+                req.flash('error', 'Unable to load your orders right now.');
+                return res.render('purchasehistory', { user: req.session.user, orders: [] });
+            }
+            const grouped = {};
+            (items || []).forEach(it => {
+                if (!grouped[it.order_id]) grouped[it.order_id] = [];
+                grouped[it.order_id].push(it);
+            });
+            const hydrated = orderList.map(o => ({
+                ...o,
+                items: grouped[o.id] || []
+            }));
+            res.render('purchasehistory', {
+                user: req.session.user,
+                orders: hydrated
+            });
+        });
+    });
+});
+
+// Reorder: copy past order items back into cart
+app.get('/orders/:id/reorder', checkAuthenticated, (req, res) => {
+    const userId = req.session.user && req.session.user.id;
+    const orderId = parseInt(req.params.id, 10);
+    if (!userId || isNaN(orderId)) {
+        req.flash('error', 'Invalid order.');
+        return res.redirect('/orders');
+    }
+
+    // Ensure order belongs to user
+    connection.query('SELECT id FROM orders WHERE id = ? AND user_id = ?', [orderId, userId], (err, rows) => {
+        if (err || !rows || !rows.length) {
+            req.flash('error', 'Order not found.');
+            return res.redirect('/orders');
+        }
+
+        const itemsSql = `
+            SELECT oi.*, p.productName, p.price AS current_price, p.image, p.quantity AS stock
+            FROM order_items oi
+            LEFT JOIN products p ON oi.product_id = p.id
+            WHERE oi.order_id = ?
+        `;
+        connection.query(itemsSql, [orderId], (iErr, items) => {
+            if (iErr) {
+                console.error('Failed to load order items for reorder', iErr);
+                req.flash('error', 'Unable to reorder right now.');
+                return res.redirect('/orders');
+            }
+
+            if (!req.session.cart) req.session.cart = [];
+            const cart = req.session.cart;
+            const skipped = [];
+            let addedCount = 0;
+
+            (items || []).forEach(it => {
+                if (!it.product_id || !it.productName || it.stock === null || it.stock === undefined || it.stock <= 0) {
+                    skipped.push(it.product_name || `Item #${it.id}`);
+                    return;
+                }
+                const desiredQty = Math.min(it.quantity, it.stock);
+                if (desiredQty <= 0) {
+                    skipped.push(it.productName);
+                    return;
+                }
+
+                const existing = cart.find(c => c.productId === it.product_id);
+                if (existing) {
+                    const newQty = Math.min(existing.quantity + desiredQty, it.stock);
+                    addedCount += Math.max(0, newQty - existing.quantity);
+                    existing.quantity = newQty;
+                } else {
+                    cart.push({
+                        productId: it.product_id,
+                        productName: it.productName,
+                        price: it.current_price || it.unit_price || 0,
+                        image: it.image,
+                        quantity: desiredQty
+                    });
+                    addedCount += desiredQty;
+                }
+            });
+
+            if (addedCount > 0) {
+                req.flash('success', `Added ${addedCount} item(s) from order #${orderId} to your cart.`);
+            } else {
+                req.flash('info', 'No items could be added from that order.');
+            }
+            if (skipped.length) {
+                req.flash('error', `Skipped items due to stock/unavailability: ${skipped.join(', ')}`);
+            }
+            res.redirect('/cart');
+        });
     });
 });
 
@@ -455,6 +647,9 @@ app.get('/checkout', checkAuthenticated, (req, res) => {
         const applied = req.session.appliedPromo || null;
         const userId = req.session.user && req.session.user.id;
         const loyaltyRedemption = req.session.loyaltyRedemption || { points: 0, discount: 0 };
+        const draft = req.session.checkoutDraft || {};
+        const deliveryDate = draft.deliveryDate || '';
+        const deliveryTime = draft.deliveryTime || '';
 
         // re-validate applied promo against current cart and per-user limits
         if (applied && applied.promoId) {
@@ -473,7 +668,9 @@ app.get('/checkout', checkAuthenticated, (req, res) => {
                         appliedDiscount: 0,
                         previewPromo: req.session.previewPromo || null,
                         promos: promos || [],
-                        loyaltyRedemption
+                        loyaltyRedemption,
+                        deliveryDate,
+                        deliveryTime
                     });
                 }
                 const promo = pRows && pRows[0];
@@ -520,7 +717,9 @@ app.get('/checkout', checkAuthenticated, (req, res) => {
                             appliedDiscount,
                             previewPromo: req.session.previewPromo || null,
                             promos: promos || [],
-                            loyaltyRedemption
+                            loyaltyRedemption,
+                            deliveryDate,
+                            deliveryTime
                         });
                     });
                 } else {
@@ -536,7 +735,9 @@ app.get('/checkout', checkAuthenticated, (req, res) => {
                         appliedDiscount,
                         previewPromo: req.session.previewPromo || null,
                         promos: promos || [],
-                        loyaltyRedemption
+                        loyaltyRedemption,
+                        deliveryDate,
+                        deliveryTime
                     });
                 }
             });
@@ -552,7 +753,9 @@ app.get('/checkout', checkAuthenticated, (req, res) => {
                 appliedDiscount: 0,
                 previewPromo: req.session.previewPromo || null,
                 promos: promos || [],
-                loyaltyRedemption
+                loyaltyRedemption,
+                deliveryDate,
+                deliveryTime
             });
         }
     });
@@ -654,6 +857,67 @@ app.post('/checkout', checkAuthenticated, (req, res) => {
         return res.redirect('/cart');
     }
 
+    // Delivery + payment details from checkout form
+    const deliveryName = (req.body.customerName || '').trim();
+    const deliveryContact = (req.body.customerContact || '').trim();
+    const deliveryAddress = (req.body.customerAddress || '').trim();
+    const deliveryPostal = (req.body.customerPostal || '').trim();
+    const paymentMethodInput = (req.body.paymentMethod || '').trim();
+    const orderNotes = (req.body.orderNotes || '').trim();
+    const deliveryDateStr = (req.body.deliveryDate || '').trim();
+    const deliveryTimeSlot = (req.body.deliveryTime || '').trim();
+
+    const paymentMethodLabels = {
+        cash_on_delivery: 'Cash on Delivery',
+        paynow_mock: 'PayNow',
+        card_mock: 'Credit/Debit'
+    };
+    const paymentMethod = paymentMethodLabels[paymentMethodInput] || paymentMethodInput;
+
+    const checkoutErrors = [];
+    if (!deliveryName) checkoutErrors.push('Delivery name is required.');
+    if (!deliveryContact) checkoutErrors.push('Contact number is required.');
+    if (!deliveryAddress) checkoutErrors.push('Delivery address is required.');
+    if (!deliveryPostal) checkoutErrors.push('Postal code is required.');
+    if (!paymentMethod) checkoutErrors.push('Payment method is required.');
+
+    // Delivery scheduling validation
+    let deliveryDateVal = null;
+    if (!deliveryDateStr) {
+        checkoutErrors.push('Delivery date is required.');
+    } else {
+        const candidate = new Date(deliveryDateStr);
+        if (isNaN(candidate.getTime())) {
+            checkoutErrors.push('Invalid delivery date.');
+        } else {
+            const today = new Date();
+            today.setHours(0,0,0,0);
+            candidate.setHours(0,0,0,0);
+            if (candidate < today) {
+                checkoutErrors.push('Delivery date cannot be in the past.');
+            } else {
+                deliveryDateVal = deliveryDateStr;
+            }
+        }
+    }
+
+    if (!deliveryTimeSlot) {
+        checkoutErrors.push('Delivery time slot is required.');
+    } else if (!ALLOWED_DELIVERY_SLOTS.includes(deliveryTimeSlot)) {
+        checkoutErrors.push('Invalid delivery time slot.');
+    }
+
+    // Persist draft values for re-render
+    req.session.checkoutDraft = {
+        deliveryDate: deliveryDateStr,
+        deliveryTime: deliveryTimeSlot
+    };
+
+    if (checkoutErrors.length) {
+        checkoutErrors.forEach(msg => req.flash('error', msg));
+        return res.redirect('/checkout');
+    }
+
     // 1. Calculate order totals (before DB)
     let orderTotal = 0;
     cart.forEach(item => {
@@ -682,21 +946,35 @@ app.post('/checkout', checkAuthenticated, (req, res) => {
     const netPoints = earnedPoints - redeemedPoints;
 
     // Start a transaction so stock + order are consistent
-    connection.beginTransaction(err => {
-        if (err) {
-            console.error('Failed to start transaction', err);
-            req.flash('error', 'Unable to complete checkout. Please try again.');
+    ensureOrderDeliveryColumns((schemaErr) => {
+        if (schemaErr) {
+            console.error('Failed to ensure delivery columns', schemaErr);
+            req.flash('error', 'Unable to prepare order storage. Please try again.');
             return res.redirect('/checkout');
         }
 
-        // 2. Insert into orders (invoice header)
-        const orderSql = `
-            INSERT INTO orders (user_id, subtotal, promo_discount, loyalty_discount, final_total)
-            VALUES (?, ?, ?, ?, ?)
-        `;
-        connection.query(
-            orderSql,
-            [userId, orderTotal, promoDiscount, loyaltyDiscount, finalTotal],
+        ensureInvoiceColumns((invoiceErr) => {
+            if (invoiceErr) {
+                console.error('Failed to ensure invoice columns', invoiceErr);
+                req.flash('error', 'Unable to prepare invoice storage. Please try again.');
+                return res.redirect('/checkout');
+            }
+
+            connection.beginTransaction(err => {
+                if (err) {
+                    console.error('Failed to start transaction', err);
+                    req.flash('error', 'Unable to complete checkout. Please try again.');
+                    return res.redirect('/checkout');
+                }
+
+            // 2. Insert into orders (invoice header)
+            const orderSql = `
+                INSERT INTO orders (user_id, customer_name, customer_contact, delivery_address, postal_code, payment_method, order_notes, delivery_date, delivery_time, subtotal, promo_discount, loyalty_discount, final_total)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `;
+            connection.query(
+                orderSql,
+                [userId, deliveryName, deliveryContact, deliveryAddress, deliveryPostal, paymentMethod, orderNotes || null, deliveryDateVal, deliveryTimeSlot, orderTotal, promoDiscount, loyaltyDiscount, finalTotal],
             (orderErr, orderResult) => {
                 if (orderErr) {
                     return connection.rollback(() => {
@@ -763,7 +1041,7 @@ app.post('/checkout', checkAuthenticated, (req, res) => {
                                     pending--;
                                     if (pending === 0) {
                                         // All items processed — now update loyalty + promo and COMMIT
-                                        finishOrder();
+                                        createInvoiceThenFinish();
                                     }
                                 }
                             );
@@ -772,27 +1050,45 @@ app.post('/checkout', checkAuthenticated, (req, res) => {
                 }
 
                 // Called when all items & stock updates finished
+                function insertInvoice(orderId, next) {
+                    const invoiceNumber = formatInvoiceNumber(orderId);
+                    const invoiceSql = `
+                        INSERT INTO invoices (order_id, user_id, invoice_number, subtotal, final_total, amount)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                    `;
+                    connection.query(
+                        invoiceSql,
+                        [orderId, userId, invoiceNumber, orderTotal, finalTotal, finalTotal],
+                        (invErr) => {
+                            if (invErr) {
+                                return connection.rollback(() => {
+                                    console.error('Failed to create invoice', invErr);
+                                    req.flash('error', 'Unable to create invoice record.');
+                                    res.redirect('/checkout');
+                                });
+                            }
+                            next();
+                        }
+                    );
+                }
+
+                function createInvoiceThenFinish() {
+                    insertInvoice(orderId, finishOrder);
+                }
+
                 function finishOrder() {
                     // 4. Update user loyalty in DB (best-effort: if columns missing, skip but do not block checkout)
                     if (userId && netPoints !== 0) {
                         connection.query(
-                            'UPDATE users SET loyalty_points = GREATEST(COALESCE(loyalty_points,0) + ?, 0), membership_tier = ? WHERE id = ?',
-                            [netPoints, getMembershipTier(((req.session.user && req.session.user.loyalty_points) || 0) + netPoints), userId],
+                            'UPDATE users SET loyalty_points = GREATEST(COALESCE(loyalty_points,0) + ?, 0) WHERE id = ?',
+                            [netPoints, userId],
                             (lpErr) => {
                                 if (lpErr) {
-                                    const missingCols = lpErr.code === 'ER_BAD_FIELD_ERROR';
-                                    if (missingCols) {
-                                        console.warn('Loyalty columns missing on users table; skipping loyalty update.');
-                                    } else {
-                                        return connection.rollback(() => {
-                                            console.error('Failed to update loyalty points', lpErr);
-                                            req.flash('error', 'Unable to update loyalty points.');
-                                            res.redirect('/checkout');
-                                        });
-                                    }
+                                    // Log but do not block checkout; ensures orders still complete
+                                    console.error('Failed to update loyalty points', lpErr);
                                 }
 
-                                // Also update session (even if DB skipped, so UI reflects earned points this session)
+                                // Update session so UI reflects earned points this session
                                 const current = typeof req.session.user.loyalty_points === 'number'
                                     ? req.session.user.loyalty_points
                                     : 0;
@@ -853,6 +1149,7 @@ app.post('/checkout', checkAuthenticated, (req, res) => {
                                 req.session.cart = [];
                                 req.session.appliedPromo = null;
                                 req.session.loyaltyRedemption = null;
+                                req.session.checkoutDraft = null;
 
                                 req.flash('success', `Order placed successfully! You earned ${earnedPoints} points.`);
                                 // redirect to invoice page
@@ -873,16 +1170,19 @@ app.post('/checkout', checkAuthenticated, (req, res) => {
                             req.session.cart = [];
                             req.session.appliedPromo = null;
                             req.session.loyaltyRedemption = null;
+                            req.session.checkoutDraft = null;
 
                             req.flash('success', `Order placed successfully! You earned ${earnedPoints} points.`);
                             res.redirect(`/invoice/${orderId}`);
                         });
                     }
                 }
-            }
-        );
-    });
-});
+            }); // end order insert query
+
+        }); // end connection.beginTransaction
+    }); // end ensureInvoiceColumns
+}); // end ensureOrderDeliveryColumns
+}); // end app.post('/checkout')
 
 // =====================
 // Invoice view
@@ -954,16 +1254,19 @@ app.get('/product/:id', checkAuthenticated, (req, res) => {
     connection.query('SELECT * FROM products WHERE id = ?', [productId], (error, results) => {
         if (error) throw error;
 
-        if (results.length > 0) {
-            res.render('product', {
-                product: results[0],
-                user: req.session.user
-            });
-        } else {
-            res.status(404).send('Product not found');
+        if (results.length === 0) {
+            return res.status(404).send('Product not found');
         }
+
+        const product = results[0];
+
+        res.render('product', {
+            product,
+            user: req.session.user
+        });
     });
 });
+
 
 // =====================
 // Promo: apply route
@@ -1275,12 +1578,32 @@ app.post('/updateProduct/:id', checkAuthenticated, checkAdmin, upload.single('im
 app.get('/deleteProduct/:id', checkAuthenticated, checkAdmin, (req, res) => {
     const productId = req.params.id;
 
-    connection.query('DELETE FROM products WHERE id = ?', [productId], (error) => {
-        if (error) {
-            console.error('Error deleting product:', error);
-            return res.status(500).send('Error deleting product');
+    // First, ensure product exists so we can show a clearer message
+    connection.query('SELECT id FROM products WHERE id = ?', [productId], (selErr, rows) => {
+        if (selErr) {
+            console.error('Error checking product before delete:', selErr);
+            req.flash('error', 'Unable to delete product right now.');
+            return res.redirect('/inventory');
         }
-        res.redirect('/inventory');
+        if (!rows || !rows.length) {
+            req.flash('error', 'Product not found or already deleted.');
+            return res.redirect('/inventory');
+        }
+
+        connection.query('DELETE FROM products WHERE id = ?', [productId], (error) => {
+            if (error) {
+                // FK constraint means product is referenced in order_items
+                if (error.code === 'ER_ROW_IS_REFERENCED_2' || error.code === 'ER_ROW_IS_REFERENCED' || error.errno === 1451 || error.sqlState === '23000') {
+                    req.flash('error', 'Product cannot be deleted due to existing orders.');
+                    return res.redirect('/inventory');
+                }
+                console.error('Error deleting product:', error);
+                req.flash('error', 'Error deleting product.');
+                return res.redirect('/inventory');
+            }
+            req.flash('success', 'Product deleted.');
+            res.redirect('/inventory');
+        });
     });
 });
 

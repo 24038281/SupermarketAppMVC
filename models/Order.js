@@ -11,6 +11,12 @@ const orderItemSchema = new mongoose.Schema({
 const orderSchema = new mongoose.Schema({
   customer: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   items: [orderItemSchema],
+  customerName: String,
+  customerContact: String,
+  deliveryAddress: String,
+  postalCode: String,
+  paymentMethod: String,
+  orderNotes: String,
   subtotal: Number,
   discountAmount: { type: Number, default: 0 },
   promoCode: { type: String },

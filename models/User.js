@@ -1,4 +1,7 @@
-const mongoose = require('../config/db');
+// models/user.js
+const mongoose = require('mongoose');    // use mongoose directly
+require('../config/db');                // this just ensures the DB connects
+
 const bcrypt = require('bcryptjs');
 
 const userSchema = new mongoose.Schema({

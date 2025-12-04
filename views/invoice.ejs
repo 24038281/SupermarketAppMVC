@@ -187,6 +187,66 @@
         </div>
     </div>
 
+    <!-- Customer Details -->
+    <h2 class="section-title">Customer Details</h2>
+    <table>
+        <tr>
+            <th style="width:40%;">Account Name</th>
+            <td><%= order.username %></td>
+        </tr>
+        <tr>
+            <th>Account Email</th>
+            <td><%= order.email %></td>
+        </tr>
+        <% if (order.user_id) { %>
+        <tr>
+            <th>Account ID</th>
+            <td>#<%= order.user_id %></td>
+        </tr>
+        <% } %>
+    </table>
+
+    <!-- Delivery & Payment -->
+    <h2 class="section-title">Delivery Information</h2>
+    <table>
+        <tr>
+            <th style="width:40%;">Recipient Name</th>
+            <td><%= order.customer_name || order.customerName || order.username %></td>
+        </tr>
+        <tr>
+            <th>Delivery Address</th>
+            <td><%= order.delivery_address || order.deliveryAddress || 'N/A' %></td>
+        </tr>
+        <% if (order.customer_contact || order.contactNumber) { %>
+        <tr>
+            <th>Contact Number</th>
+            <td><%= order.customer_contact || order.contactNumber %></td>
+        </tr>
+        <% } %>
+        <tr>
+            <th>Postal Code</th>
+            <td><%= order.postal_code || order.postalCode || 'N/A' %></td>
+        </tr>
+        <tr>
+            <th>Payment Method</th>
+            <td><%= order.payment_method || order.paymentMethod || 'N/A' %></td>
+        </tr>
+        <tr>
+            <th>Delivery Date</th>
+            <td><%= order.delivery_date || order.deliveryDate || 'N/A' %></td>
+        </tr>
+        <tr>
+            <th>Delivery Time</th>
+            <td><%= order.delivery_time || order.deliveryTime || 'N/A' %></td>
+        </tr>
+        <% if (order.order_notes || order.orderNotes) { %>
+        <tr>
+            <th>Order Notes</th>
+            <td><%= order.order_notes || order.orderNotes %></td>
+        </tr>
+        <% } %>
+    </table>
+
     <!-- Items -->
     <h2 class="section-title">Order Items</h2>
     <table>
@@ -230,7 +290,12 @@
         </div>
     </div>
 
-    <a class="btn-back" href="/orders">← Back to Orders</a>
+    <% if (user && user.isPrimaryAdmin) { %>
+    <a class="btn-back" href="/admin/invoices">Back to All Invoices</a>
+    <% } else { %>
+    <a class="btn-back" href="/shopping">Back to Shopping</a>
+    <a class="btn-back" href="/orders">Back to Purchase History</a>
+    <% } %>
 </div>
 </body>
 </html>

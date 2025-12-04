@@ -1,12 +1,12 @@
 const InventoryTxn = require('../models/InventoryTxn');
 
-const notImplemented = (req, res) => res.status(501).json({ message: 'Not implemented' });
+const methodNotAllowed = (req, res) => res.status(405).json({ message: 'Not allowed' });
 
 module.exports = {
   model: InventoryTxn,
-  list: notImplemented,
-  get: notImplemented,
-  create: notImplemented,
-  update: notImplemented,
-  remove: notImplemented
+  list: methodNotAllowed,
+  get: methodNotAllowed,
+  create: methodNotAllowed,
+  update: methodNotAllowed,
+  remove: methodNotAllowed
 };

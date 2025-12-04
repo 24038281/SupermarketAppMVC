@@ -27,6 +27,8 @@ CREATE TABLE `invoices` (
   `order_id` int NOT NULL,
   `user_id` int NOT NULL,
   `invoice_number` varchar(50) DEFAULT NULL,
+  `subtotal` decimal(10,2) DEFAULT NULL,
+  `final_total` decimal(10,2) DEFAULT NULL,
   `amount` decimal(10,2) DEFAULT NULL,
   `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
@@ -46,6 +48,12 @@ LOCK TABLES `invoices` WRITE;
 /*!40000 ALTER TABLE `invoices` DISABLE KEYS */;
 /*!40000 ALTER TABLE `invoices` ENABLE KEYS */;
 UNLOCK TABLES;
+
+--
+-- Table structure for table `product_reviews`
+--
+
+DROP TABLE IF EXISTS `product_reviews`;
 
 --
 -- Table structure for table `loyalty_points`
@@ -159,6 +167,12 @@ DROP TABLE IF EXISTS `orders`;
 CREATE TABLE `orders` (
   `id` int NOT NULL AUTO_INCREMENT,
   `user_id` int NOT NULL,
+  `customer_name` varchar(255) DEFAULT NULL,
+  `customer_contact` varchar(50) DEFAULT NULL,
+  `delivery_address` varchar(255) DEFAULT NULL,
+  `postal_code` varchar(20) DEFAULT NULL,
+  `payment_method` varchar(50) DEFAULT NULL,
+  `order_notes` text,
   `subtotal` decimal(10,2) NOT NULL,
   `promo_discount` decimal(10,2) DEFAULT '0.00',
   `loyalty_discount` decimal(10,2) DEFAULT '0.00',
@@ -176,7 +190,7 @@ CREATE TABLE `orders` (
 
 LOCK TABLES `orders` WRITE;
 /*!40000 ALTER TABLE `orders` DISABLE KEYS */;
-INSERT INTO `orders` VALUES (3,9,30.80,0.00,0.00,30.80,'2025-11-26 14:36:20'),(4,9,54.80,0.00,0.00,54.80,'2025-11-26 14:40:46'),(5,9,36.00,3.60,0.00,32.40,'2025-11-26 14:45:35');
+INSERT INTO `orders` VALUES (3,9,NULL,NULL,NULL,NULL,NULL,NULL,30.80,0.00,0.00,30.80,'2025-11-26 14:36:20'),(4,9,NULL,NULL,NULL,NULL,NULL,NULL,54.80,0.00,0.00,54.80,'2025-11-26 14:40:46'),(5,9,NULL,NULL,NULL,NULL,NULL,NULL,36.00,3.60,0.00,32.40,'2025-11-26 14:45:35');
 /*!40000 ALTER TABLE `orders` ENABLE KEYS */;
 UNLOCK TABLES;
 

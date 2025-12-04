@@ -71,10 +71,97 @@
     <% if (promoError) { %><div class="alert alert-danger"><%= promoError %></div><% } %>
     <% if (appliedPromo) { %><div class="alert alert-success">Promo applied: <strong><%= appliedPromo.code || appliedPromo %></strong></div><% } %>
 
-    <div class="row g-3">
+    <div class="row g-4 align-items-start">
       <div class="col-lg-7">
+        <% const deliveryDateVal = typeof deliveryDate !== 'undefined' ? deliveryDate : ''; %>
+        <% const deliveryTimeVal = typeof deliveryTime !== 'undefined' ? deliveryTime : ''; %>
+        <form method="POST" action="/checkout" class="d-flex flex-column gap-3">
+          <div class="card-shell p-3">
+            <h5 class="fw-semibold mb-3">Customer Information</h5>
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label">Full Name</label>
+                <input type="text" name="customerName" class="form-control" placeholder="Jane Doe" required>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Contact Number</label>
+                <input type="tel" name="customerContact" class="form-control" placeholder="+65 9123 4567" required>
+              </div>
+              <div class="col-12">
+                <label class="form-label">Delivery Address</label>
+                <input type="text" name="customerAddress" class="form-control" placeholder="123 Orchard Road, #01-01" required>
+              </div>
+              <div class="col-sm-6 col-md-4">
+                <label class="form-label">Postal Code</label>
+                <input type="text" name="customerPostal" class="form-control" inputmode="numeric" pattern="\d{4,10}" placeholder="123456" required>
+              </div>
+            </div>
+          </div>
+
+          <div class="card-shell p-3">
+            <h5 class="fw-semibold mb-3">Payment Method</h5>
+            <div class="form-check mb-2">
+              <input class="form-check-input" type="radio" name="paymentMethod" id="payCOD" value="cash_on_delivery" required>
+              <label class="form-check-label" for="payCOD">Cash on Delivery</label>
+            </div>
+            <div class="form-check mb-2">
+              <input class="form-check-input" type="radio" name="paymentMethod" id="payPayNow" value="paynow_mock" required>
+              <label class="form-check-label" for="payPayNow">PayNow</label>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="radio" name="paymentMethod" id="payCard" value="card_mock" required>
+              <label class="form-check-label" for="payCard">Credit/Debit</label>
+            </div>
+          </div>
+
+          <div class="card-shell p-3">
+            <h5 class="fw-semibold mb-2">Order Notes (optional)</h5>
+            <label class="form-label" for="orderNotes">Notes</label>
+            <textarea id="orderNotes" name="orderNotes" class="form-control" rows="3" placeholder="Leave any delivery instructions here..."></textarea>
+          </div>
+
+          <div class="card-shell p-3">
+            <h5 class="fw-semibold mb-3">Delivery Schedule</h5>
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label class="form-label">Delivery Date</label>
+                <input type="date" name="deliveryDate" class="form-control" value="<%= deliveryDateVal %>" required>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Delivery Time Slot</label>
+                <select name="deliveryTime" class="form-select" required>
+                  <option value="">Select a time slot</option>
+                  <option value="10am – 12pm" <%= deliveryTimeVal === '10am – 12pm' ? 'selected' : '' %>>10am – 12pm</option>
+                  <option value="12pm – 2pm" <%= deliveryTimeVal === '12pm – 2pm' ? 'selected' : '' %>>12pm – 2pm</option>
+                  <option value="2pm – 4pm" <%= deliveryTimeVal === '2pm – 4pm' ? 'selected' : '' %>>2pm – 4pm</option>
+                  <option value="6pm – 8pm" <%= deliveryTimeVal === '6pm – 8pm' ? 'selected' : '' %>>6pm – 8pm</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div class="card-shell p-3 bg-light border">
+            <h5 class="fw-semibold mb-3">Final Review</h5>
+            <%
+              let subtotal = originalTotal || 0;
+              let promoDiscount = appliedDiscount && appliedDiscount > 0 ? appliedDiscount : 0;
+              let loyaltyDiscount = (typeof loyaltyRedemption !== 'undefined' && loyaltyRedemption && loyaltyRedemption.discount) ? loyaltyRedemption.discount : 0;
+              let finalTotal = Math.max(0, subtotal - promoDiscount - loyaltyDiscount);
+            %>
+            <div class="d-flex justify-content-between mb-1"><span class="text-muted">Subtotal</span><span>$<%= subtotal.toFixed(2) %></span></div>
+            <% if (promoDiscount > 0) { %><div class="d-flex justify-content-between mb-1 text-success"><span>Promo</span><span>- $<%= promoDiscount.toFixed(2) %></span></div><% } %>
+            <% if (loyaltyDiscount > 0) { %><div class="d-flex justify-content-between mb-1 text-success"><span>Loyalty</span><span>- $<%= loyaltyDiscount.toFixed(2) %></span></div><% } %>
+            <hr>
+            <div class="d-flex justify-content-between align-items-center mb-3"><span class="fw-semibold">Total</span><span class="fw-bold fs-4">$<%= finalTotal.toFixed(2) %></span></div>
+            <button class="btn btn-primary w-100 btn-lg" type="submit">Place order</button>
+            <small class="text-muted d-block mt-2">Secure payment and order confirmation will follow.</small>
+          </div>
+        </form>
+      </div>
+
+      <div class="col-lg-5">
         <div class="card-shell p-3 mb-3">
-          <h5 class="fw-semibold mb-3">Order summary</h5>
+          <h5 class="fw-semibold mb-3">Order Summary</h5>
           <table class="table align-middle mb-0">
             <thead class="table-light">
               <tr><th>Product</th><th class="text-center">Qty</th><th class="text-end">Subtotal</th></tr>
@@ -91,38 +178,37 @@
           </table>
         </div>
 
-        <% if (promos && promos.length) { %>
-          <div class="card-shell p-3 mb-3">
-            <h6 class="fw-semibold">Available promos</h6>
-            <ul class="list-unstyled mb-0 small">
+        <div class="card-shell p-3 mb-3">
+          <h6 class="fw-semibold">Promotions & Loyalty</h6>
+          <% if (promos && promos.length) { %>
+            <ul class="list-unstyled mb-3 small">
               <% promos.forEach(function(p) { %>
                 <li class="mb-1"><strong><%= p.code %></strong> &middot; <%= p.description %> <% if (p.type === 'percent') { %>(<%= p.amount %>% off)<% } else { %>($<%= p.amount %> off)<% } %></li>
               <% }); %>
             </ul>
-          </div>
-        <% } %>
-      </div>
+          <% } else { %>
+            <p class="text-muted small mb-3">No active promos available.</p>
+          <% } %>
 
-      <div class="col-lg-5">
-        <% if (user) { %>
-          <div class="card-shell p-3 mb-3">
-            <h6 class="fw-semibold">Loyalty & membership</h6>
-            <p class="mb-1">Membership: <strong><%= user.membership_tier || 'Basic' %></strong></p>
-            <p class="mb-2">Points: <strong><%= user.loyalty_points || 0 %></strong></p>
-            <form method="POST" action="/apply-loyalty" class="d-flex gap-2">
-              <input type="number" name="pointsToRedeem" class="form-control" min="1" max="<%= user.loyalty_points || 0 %>" placeholder="Points to redeem">
-              <button class="btn btn-outline-success" type="submit">Redeem</button>
-            </form>
-            <% if (typeof loyaltyRedemption !== 'undefined' && loyaltyRedemption && loyaltyRedemption.points > 0) { %>
-              <div class="alert alert-info mt-2 mb-0 p-2 d-flex justify-content-between align-items-center">
-                <span>Redeeming <strong><%= loyaltyRedemption.points %></strong> points for <strong>$<%= loyaltyRedemption.discount.toFixed(2) %></strong> off.</span>
-                <form action="/cancel-loyalty" method="POST" class="ms-2">
-                  <button type="submit" class="btn btn-sm btn-outline-danger">Cancel</button>
-                </form>
-              </div>
-            <% } %>
-          </div>
-        <% } %>
+          <% if (user) { %>
+            <div class="border-top pt-3">
+              <p class="mb-1">Membership: <strong><%= user.membership_tier || 'Basic' %></strong></p>
+              <p class="mb-2">Points: <strong><%= user.loyalty_points || 0 %></strong></p>
+              <form method="POST" action="/apply-loyalty" class="d-flex gap-2">
+                <input type="number" name="pointsToRedeem" class="form-control" min="1" max="<%= user.loyalty_points || 0 %>" placeholder="Points to redeem">
+                <button class="btn btn-outline-success" type="submit">Redeem</button>
+              </form>
+              <% if (typeof loyaltyRedemption !== 'undefined' && loyaltyRedemption && loyaltyRedemption.points > 0) { %>
+                <div class="alert alert-info mt-2 mb-0 p-2 d-flex justify-content-between align-items-center">
+                  <span>Redeeming <strong><%= loyaltyRedemption.points %></strong> points for <strong>$<%= loyaltyRedemption.discount.toFixed(2) %></strong> off.</span>
+                  <form action="/cancel-loyalty" method="POST" class="ms-2">
+                    <button type="submit" class="btn btn-sm btn-outline-danger">Cancel</button>
+                  </form>
+                </div>
+              <% } %>
+            </div>
+          <% } %>
+        </div>
 
         <div class="card-shell p-3 mb-3">
           <h6 class="fw-semibold">Promo code</h6>
@@ -151,23 +237,6 @@
             <form method="POST" action="/remove-applied-promo"><button class="btn btn-sm btn-outline-danger">Remove</button></form>
           </div>
         <% } %>
-
-        <div class="card-shell p-3">
-          <h6 class="fw-semibold">Total</h6>
-          <%
-            let subtotal = originalTotal || 0;
-            let promoDiscount = appliedDiscount && appliedDiscount > 0 ? appliedDiscount : 0;
-            let loyaltyDiscount = (typeof loyaltyRedemption !== 'undefined' && loyaltyRedemption && loyaltyRedemption.discount) ? loyaltyRedemption.discount : 0;
-            let finalTotal = Math.max(0, subtotal - promoDiscount - loyaltyDiscount);
-          %>
-          <div class="d-flex justify-content-between mb-1"><span class="text-muted">Subtotal</span><span>$<%= subtotal.toFixed(2) %></span></div>
-          <% if (promoDiscount > 0) { %><div class="d-flex justify-content-between mb-1 text-success"><span>Promo</span><span>- $<%= promoDiscount.toFixed(2) %></span></div><% } %>
-          <% if (loyaltyDiscount > 0) { %><div class="d-flex justify-content-between mb-1 text-success"><span>Loyalty</span><span>- $<%= loyaltyDiscount.toFixed(2) %></span></div><% } %>
-          <hr>
-          <div class="d-flex justify-content-between align-items-center mb-3"><span class="fw-semibold">Total</span><span class="fw-bold fs-4">$<%= finalTotal.toFixed(2) %></span></div>
-          <form method="POST" action="/checkout" class="mt-2"><button class="btn btn-primary w-100 btn-lg" type="submit">Place order</button></form>
-          <small class="text-muted d-block mt-2">Secure payment and order confirmation will follow.</small>
-        </div>
       </div>
     </div>
   </main>

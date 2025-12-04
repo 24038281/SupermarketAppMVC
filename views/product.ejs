@@ -34,25 +34,32 @@
         </div>
     </nav>
 
-    <div class="container">
-        <p>Welcome, <%= user.username %> (<%= user.role %>)</p>
-        <br>
-        <div class="text-center"><h2>Product Details</h2></div>
-        <br>
-        <% if (product) { %> <!-- Check if product data exists -->
+    <div class="container my-4">
+        <div class="d-flex justify-content-between align-items-center mb-3">
             <div>
-                <p><b>Product Name:</b><br> <%= product.productName %></p>
-                <p><b>Product Image:</b><br> <img src = "../images/<%= product.image %>" width="20%"></p>
-                <p><b>Product Quantity:</b><br> <%= product.quantity %></p>
-                <p><b>Price:</b><br> $<%= product.price.toFixed(2) %></p> 
+                <h2 class="mb-1">Product Details</h2>
+                <p class="text-muted mb-0">Welcome, <%= user.username %> (<%= user.role %>)</p>
+            </div>
+            <div>
+                <% if (user.role === "admin") { %>
+                  <a href="/inventory" class="btn btn-outline-secondary">Back</a>
+                <% } else { %>
+                  <a href="/shopping" class="btn btn-outline-secondary">Back</a>
+                <% } %>
+            </div>
+        </div>
+
+        <% if (product) { %> <!-- Check if product data exists -->
+            <div class="card shadow-sm">
+                <div class="card-body text-center">
+                    <p class="fw-bold mb-2"><%= product.productName %></p>
+                    <img src="../images/<%= product.image %>" class="img-fluid mb-3" style="max-height:240px; object-fit:contain;">
+                    <p class="mb-1"><strong>Quantity:</strong> <%= product.quantity %></p>
+                    <p class="mb-1"><strong>Price:</strong> $<%= product.price.toFixed(2) %></p> 
+                </div>
             </div>
         <% } else { %>
             <p>No product found.</p>
-        <% } %>
-        <% if (user.role === "admin") { %>
-          <a href ="/inventory">Back</a>
-        <% } else { %>
-          <a href ="/shopping">Back</a>
         <% } %>
     </div>
     

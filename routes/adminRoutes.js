@@ -69,14 +69,6 @@ router.get('/admin/categories', checkAuthenticated, checkAdmin, (req, res) => {
   });
 });
 
-// Admin: Suppliers (stub for now)
-router.get('/admin/suppliers', checkAuthenticated, checkAdmin, (req, res) => {
-  const suppliers = [];
-  res.render('adminSuppliers', {
-    user: req.session.user,
-    suppliers
-  });
-});
 
 // Admin: Membership Plans
 router.get('/admin/membership-plans', checkAuthenticated, checkAdmin, (req, res) => {
@@ -106,104 +98,52 @@ router.get('/admin/membership-plans', checkAuthenticated, checkAdmin, (req, res)
   });
 });
 
+// Disable create/edit/delete plan actions on this page – keep read-only display
 router.post('/admin/membership-plans', checkAuthenticated, checkAdmin, (req, res) => {
-  const { name, description, points_multiplier, annual_fee, min_annual_spend, benefits, active } = req.body;
-  const errors = [];
-
-  const cleanedName = (name || '').trim();
-  if (!cleanedName) errors.push('Name is required');
-
-  const cleanedMultiplier = parseFloat(points_multiplier);
-  if (isNaN(cleanedMultiplier) || cleanedMultiplier <= 0) errors.push('Points multiplier must be a positive number');
-
-  let cleanedFee = 0;
-  if (annual_fee) {
-    const v = parseFloat(annual_fee);
-    if (isNaN(v) || v < 0) errors.push('Annual fee must be non-negative');
-    else cleanedFee = v;
-  }
-
-  if (errors.length) {
-    errors.forEach(e => req.flash('error', e));
-    return res.redirect('/admin/membership-plans');
-  }
-
-  const sql = `INSERT INTO membership_plans (name, description, points_multiplier, annual_fee, min_annual_spend, benefits, active) VALUES (?, ?, ?, ?, ?, ?, ?)`;
-  connection.query(
-    sql,
-    [cleanedName, description || null, cleanedMultiplier, cleanedFee, min_annual_spend || null, benefits || null, active ? 1 : 0],
-    (err, result) => {
-      if (err) {
-        console.error('Failed to create membership plan', err);
-        req.flash('error', 'Failed to create plan: ' + (err.code || err.message));
-        return res.redirect('/admin/membership-plans');
-      }
-      console.log('Created membership plan id=', result.insertId);
-      req.flash('success', 'Membership plan created');
-      res.redirect('/admin/membership-plans');
-    }
-  );
+  req.flash('error', 'Plan editing is disabled on this page (read-only).');
+  return res.redirect('/admin/membership-plans');
 });
-
 router.get('/admin/membership-plans/:id/edit', checkAuthenticated, checkAdmin, (req, res) => {
-  const id = parseInt(req.params.id, 10);
-  connection.query('SELECT * FROM membership_plans WHERE id = ?', [id], (err, rows) => {
-    if (err || !rows || rows.length === 0) {
-      req.flash('error', 'Plan not found');
-      return res.redirect('/admin/membership-plans');
-    }
-    res.render('adminMembershipPlanEdit', { user: req.session.user, plan: rows[0] });
-  });
+  req.flash('error', 'Plan editing is disabled on this page (read-only).');
+  return res.redirect('/admin/membership-plans');
+});
+router.post('/admin/membership-plans/:id', checkAuthenticated, checkAdmin, (req, res) => {
+  req.flash('error', 'Plan editing is disabled on this page (read-only).');
+  return res.redirect('/admin/membership-plans');
+});
+router.post('/admin/membership-plans/:id/delete', checkAuthenticated, checkAdmin, (req, res) => {
+  req.flash('error', 'Plan editing is disabled on this page (read-only).');
+  return res.redirect('/admin/membership-plans');
 });
 
-router.post('/admin/membership-plans/:id', checkAuthenticated, checkAdmin, (req, res) => {
-  const id = parseInt(req.params.id, 10);
-  const { name, description, points_multiplier, annual_fee, min_annual_spend, benefits, active } = req.body;
-  const errors = [];
+// Admin: update loyalty points for a specific user
+router.post('/admin/membership-plans/users/:id/points', checkAuthenticated, checkAdmin, (req, res) => {
+  const userId = parseInt(req.params.id, 10);
+  const pointsRaw = (req.body.loyalty_points || '').trim();
 
-  const cleanedName = (name || '').trim();
-  if (!cleanedName) errors.push('Name is required');
-
-  const cleanedMultiplier = parseFloat(points_multiplier);
-  if (isNaN(cleanedMultiplier) || cleanedMultiplier <= 0) errors.push('Points multiplier must be a positive number');
-
-  let cleanedFee = 0;
-  if (annual_fee) {
-    const v = parseFloat(annual_fee);
-    if (isNaN(v) || v < 0) errors.push('Annual fee must be non-negative');
-    else cleanedFee = v;
-  }
-
-  if (errors.length) {
-    errors.forEach(e => req.flash('error', e));
+  if (Number.isNaN(userId) || userId <= 0) {
+    req.flash('error', 'Invalid user selected.');
     return res.redirect('/admin/membership-plans');
   }
 
-  const sql = `UPDATE membership_plans SET name = ?, description = ?, points_multiplier = ?, annual_fee = ?, min_annual_spend = ?, benefits = ?, active = ? WHERE id = ?`;
-  connection.query(
-    sql,
-    [cleanedName, description || null, cleanedMultiplier, cleanedFee, min_annual_spend || null, benefits || null, active ? 1 : 0, id],
-    (err) => {
-      if (err) {
-        console.error('Failed to update membership plan', err);
-        req.flash('error', 'Failed to update plan');
-        return res.redirect('/admin/membership-plans');
-      }
-      req.flash('success', 'Plan updated');
-      res.redirect('/admin/membership-plans');
-    }
-  );
-});
+  const pointsVal = Number(pointsRaw);
+  if (!Number.isInteger(pointsVal) || pointsVal < 0) {
+    req.flash('error', 'Loyalty points must be a non-negative integer.');
+    return res.redirect('/admin/membership-plans');
+  }
 
-router.post('/admin/membership-plans/:id/delete', checkAuthenticated, checkAdmin, (req, res) => {
-  const id = parseInt(req.params.id, 10);
-  connection.query('DELETE FROM membership_plans WHERE id = ?', [id], (err) => {
+  // Update the user's loyalty_points
+  connection.query('UPDATE users SET loyalty_points = ? WHERE id = ?', [pointsVal, userId], (err, result) => {
     if (err) {
-      console.error('Failed to delete membership plan', err);
-      req.flash('error', 'Failed to delete plan');
+      console.error('Failed to update loyalty points', err);
+      req.flash('error', 'Unable to update loyalty points.');
       return res.redirect('/admin/membership-plans');
     }
-    req.flash('success', 'Plan deleted');
+    if (result.affectedRows === 0) {
+      req.flash('error', 'User not found.');
+      return res.redirect('/admin/membership-plans');
+    }
+    req.flash('success', 'Loyalty points updated successfully.');
     res.redirect('/admin/membership-plans');
   });
 });
@@ -410,12 +350,20 @@ router.post('/admin/promocodes/:id/delete', checkAuthenticated, checkAdmin, (req
 router.get('/admin/invoices', checkAuthenticated, checkAdmin, (req, res) => {
   const sql = `
         SELECT 
-            o.*,
+            i.id,
+            i.order_id,
+            i.user_id,
+            COALESCE(i.invoice_number, CONCAT('#', 108000 + i.id)) AS invoiceNumber,
+            i.created_at,
+            o.subtotal,
+            o.final_total,
+            o.created_at AS order_created_at,
             u.username,
             u.email
-        FROM orders o
-        JOIN users u ON o.user_id = u.id
-        ORDER BY o.created_at DESC
+        FROM invoices i
+        JOIN orders o ON i.order_id = o.id
+        JOIN users u ON i.user_id = u.id
+        ORDER BY i.created_at DESC
     `;
   connection.query(sql, (err, results) => {
     if (err) {
@@ -433,13 +381,14 @@ router.get('/admin/invoices', checkAuthenticated, checkAdmin, (req, res) => {
 
 // Admin: view single invoice
 router.get('/admin/invoices/:id', checkAuthenticated, checkAdmin, (req, res) => {
-  const orderId = parseInt(req.params.id, 10);
+  const invoiceId = parseInt(req.params.id, 10);
 
-  const sqlOrder = `
-        SELECT o.*, u.username, u.email
-        FROM orders o
-        JOIN users u ON o.user_id = u.id
-        WHERE o.id = ?
+  const sqlInvoice = `
+        SELECT o.*, u.username, u.email, i.invoice_number AS invoiceNumber, i.id AS invoice_id
+        FROM invoices i
+        JOIN orders o ON i.order_id = o.id
+        JOIN users u ON i.user_id = u.id
+        WHERE i.id = ?
     `;
   const sqlItems = `
         SELECT *
@@ -447,12 +396,14 @@ router.get('/admin/invoices/:id', checkAuthenticated, checkAdmin, (req, res) => 
         WHERE order_id = ?
     `;
 
-  connection.query(sqlOrder, [orderId], (err, orderRows) => {
+  connection.query(sqlInvoice, [invoiceId], (err, orderRows) => {
     if (err || !orderRows || orderRows.length === 0) {
-      req.flash('error', 'Order not found');
+      req.flash('error', 'Invoice not found');
       return res.redirect('/admin/invoices');
     }
     const order = orderRows[0];
+    const orderId = order.id;
+    const invoiceNumber = order.invoiceNumber || formatInvoiceNumber(orderId);
 
     connection.query(sqlItems, [orderId], (iErr, itemRows) => {
       if (iErr) {
@@ -464,7 +415,7 @@ router.get('/admin/invoices/:id', checkAuthenticated, checkAdmin, (req, res) => 
         user: req.session.user,
         order,
         items: itemRows,
-        invoiceNumber: formatInvoiceNumber(orderId)
+        invoiceNumber
       });
     });
   });

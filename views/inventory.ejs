@@ -40,6 +40,23 @@
       <p class="text-muted">Review, edit, or remove products from the catalog.</p>
     </div>
 
+    <% if (typeof success_msg !== 'undefined' && success_msg) { %>
+      <% (Array.isArray(success_msg) ? success_msg : [success_msg]).forEach(function(m){ %>
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+          <%= m %>
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+      <% }) %>
+    <% } %>
+    <% if (typeof error_msg !== 'undefined' && error_msg) { %>
+      <% (Array.isArray(error_msg) ? error_msg : [error_msg]).forEach(function(m){ %>
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+          <%= m %>
+          <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+      <% }) %>
+    <% } %>
+
     <div class="card shadow-sm">
       <div class="card-body">
         <div class="table-responsive">

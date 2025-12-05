@@ -49,7 +49,7 @@
         <div class="order-card">
           <div class="order-header">
             <div>
-              <div class="fw-bold">Invoice #<%= order.id %></div>
+              <div class="fw-bold">Invoice #<%= order.invoiceDisplay || order.id %></div>
               <div class="text-muted small"><%= order.created_at && order.created_at.toLocaleString ? order.created_at.toLocaleString() : order.created_at %></div>
             </div>
             <div class="text-end">
@@ -92,7 +92,7 @@
             <div class="row">
               <div class="col-md-6 text-muted small">
                 <div class="mb-1">Payment details</div>
-                <div>Pay with your saved method.</div>
+                <div><%= order.payment_method || 'Pay with your saved method.' %></div>
               </div>
               <div class="col-md-6">
                 <div class="d-flex justify-content-between"><span class="fw-semibold">Subtotal</span><span>$<%= Number(order.subtotal || 0).toFixed(2) %></span></div>
@@ -102,7 +102,7 @@
               </div>
             </div>
             <div class="text-end mt-3">
-              <a class="btn btn-outline-primary btn-sm" href="/invoice/<%= order.id %>">View invoice</a>
+              <a class="btn btn-outline-primary btn-sm" href="/invoice/<%= order.invoiceId || order.id %>">View invoice</a>
               <a class="btn btn-primary btn-sm ms-2" href="/orders/<%= order.id %>/reorder">Order Again</a>
             </div>
           </div>

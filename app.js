@@ -497,9 +497,14 @@ app.get('/orders', checkAuthenticated, (req, res) => {
     }
 
     const orderSql = `
-        SELECT o.*, u.username
+        SELECT
+            o.*,
+            u.username,
+            i.id AS invoice_id,
+            i.invoice_number
         FROM orders o
         JOIN users u ON o.user_id = u.id
+        LEFT JOIN invoices i ON i.order_id = o.id
         WHERE o.user_id = ?
         ORDER BY o.created_at DESC
     `;
@@ -533,10 +538,18 @@ app.get('/orders', checkAuthenticated, (req, res) => {
                 if (!grouped[it.order_id]) grouped[it.order_id] = [];
                 grouped[it.order_id].push(it);
             });
-            const hydrated = orderList.map(o => ({
-                ...o,
-                items: grouped[o.id] || []
-            }));
+            const hydrated = orderList.map(o => {
+                const invId = o.invoice_id || o.id;
+                const rawInvoice = o.invoice_number || formatInvoiceNumber(invId);
+                const invoiceDisplay = (rawInvoice || '').replace(/^#/, ''); // show numeric part (e.g. 108007)
+                return {
+                    ...o,
+                    items: grouped[o.id] || [],
+                    invoiceId: invId,
+                    invoiceNumber: rawInvoice,
+                    invoiceDisplay
+                };
+            });
             res.render('purchasehistory', {
                 user: req.session.user,
                 orders: hydrated
@@ -942,8 +955,10 @@ app.post('/checkout', checkAuthenticated, (req, res) => {
     // Loyalty earning: $1 spent = 1 point
     const earnedPoints = Math.floor(finalTotal);
 
-    // Net change in points = earned - redeemed
-    const netPoints = earnedPoints - redeemedPoints;
+    // Net change in points:
+    // - We already deducted redeemedPoints at /apply-loyalty, so do NOT subtract again here.
+    // - Just add the points earned from this order.
+    const netPoints = earnedPoints;
 
     // Start a transaction so stock + order are consistent
     ensureOrderDeliveryColumns((schemaErr) => {

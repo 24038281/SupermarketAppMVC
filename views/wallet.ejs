@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Your Wallet</title>
+    <style>
+        body { font-family: system-ui, -apple-system, sans-serif; background: #f5f6fa; margin:0; padding:24px; }
+        .wrap { max-width: 900px; margin: 0 auto; background:#fff; border-radius:12px; box-shadow:0 10px 30px rgba(0,0,0,0.06); padding:24px 28px; }
+        h1 { margin: 0 0 12px; }
+        .balance { font-size: 32px; font-weight: 700; color:#111827; }
+        .muted { color:#6b7280; }
+        table { width:100%; border-collapse: collapse; margin-top:18px; }
+        th, td { padding:10px 12px; border-bottom:1px solid #e5e7eb; text-align:left; font-size:14px; }
+        th { background:#f9fafb; }
+        .credit { color:#15803d; font-weight:600; }
+        .debit { color:#b91c1c; font-weight:600; }
+        .actions { margin-top:16px; }
+        .btn { display:inline-block; padding:10px 14px; border-radius:10px; text-decoration:none; font-weight:600; }
+        .btn-primary { background:#2563eb; color:white; }
+        .btn-ghost { border:1px solid #d1d5db; color:#374151; }
+    </style>
+</head>
+<body>
+    <div class="wrap">
+        <h1>Wallet</h1>
+        <div class="balance">SGD $<%= Number(balance || 0).toFixed(2) %></div>
+        <div class="muted">Available balance</div>
+
+        <div class="actions">
+            <a class="btn btn-ghost" href="/orders">Back to Orders</a>
+            <a class="btn btn-primary" href="/wallet/topup">Top Up Wallet</a>
+        </div>
+
+        <h2 style="margin-top:20px;">Recent Transactions</h2>
+        <table>
+            <tr>
+                <th>#</th>
+                <th>Type</th>
+                <th>Amount</th>
+                <th>Reason</th>
+                <th>Reference</th>
+                <th>Order</th>
+                <th>Date</th>
+            </tr>
+            <% if (!transactions || !transactions.length) { %>
+                <tr><td colspan="7" class="muted">No transactions yet.</td></tr>
+            <% } else { %>
+                <% transactions.forEach(tx => { %>
+                    <tr>
+                        <td><%= tx.id %></td>
+                        <td class="<%= tx.type === 'CREDIT' ? 'credit' : 'debit' %>"><%= tx.type %></td>
+                        <td>$<%= Number(tx.amount || 0).toFixed(2) %></td>
+                        <td><%= tx.reason || '-' %></td>
+                        <td><%= tx.reference || '-' %></td>
+                        <td><%= tx.order_id ? ('#' + tx.order_id) : '-' %></td>
+                        <td><%= new Date(tx.created_at).toLocaleString() %></td>
+                    </tr>
+                <% }) %>
+            <% } %>
+        </table>
+    </div>
+</body>
+</html>

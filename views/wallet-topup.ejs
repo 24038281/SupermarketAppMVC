@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Top Up Wallet</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body { background:#f7f8fb; font-family:"Inter","Segoe UI",system-ui,-apple-system,sans-serif; padding:24px; }
+    .card-shell { max-width:640px; margin:0 auto; background:#fff; border:1px solid #e5e7eb; border-radius:18px; box-shadow:0 12px 30px rgba(0,0,0,0.06); padding:22px 24px; }
+    .pill { display:inline-flex; align-items:center; gap:8px; padding:8px 12px; border-radius:999px; background:#e0f2fe; color:#0369a1; font-weight:600; font-size:13px; letter-spacing:0.04em; text-transform:uppercase; }
+    .amount-btn { border:1px solid #e5e7eb; border-radius:10px; padding:10px 12px; background:#f8fafc; font-weight:600; }
+    .amount-btn.active { background:#e0f2fe; border-color:#bae6fd; color:#0369a1; }
+  </style>
+</head>
+<body>
+  <div class="card-shell">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <span class="pill">Wallet Top-Up</span>
+      <span class="text-muted small">Balance: $<%= Number(balance || 0).toFixed(2) %></span>
+    </div>
+    <h3 class="fw-bold mb-3">Add funds to your wallet</h3>
+
+    <form method="POST" action="/wallet/topup" id="topupForm" class="d-flex flex-column gap-3">
+      <div>
+        <label class="form-label fw-semibold">Amount</label>
+        <div class="d-flex gap-2 flex-wrap mb-2">
+          <button type="button" class="amount-btn" data-amt="10">+$10</button>
+          <button type="button" class="amount-btn" data-amt="20">+$20</button>
+          <button type="button" class="amount-btn" data-amt="50">+$50</button>
+        </div>
+        <input type="number" step="0.01" min="0.01" class="form-control" name="amount" id="amountInput" placeholder="Enter custom amount" required>
+      </div>
+
+      <div>
+        <label class="form-label fw-semibold">Payment Method</label>
+        <div class="form-check">
+          <input class="form-check-input" type="radio" name="payment_method" id="pmPaypal" value="PAYPAL" required>
+          <label class="form-check-label" for="pmPaypal">PayPal</label>
+        </div>
+        <div class="form-check">
+          <input class="form-check-input" type="radio" name="payment_method" id="pmNets" value="NETS_QR" required>
+          <label class="form-check-label" for="pmNets">NETS QR</label>
+        </div>
+      </div>
+
+      <button class="btn btn-primary btn-lg" type="submit">Continue</button>
+      <a class="text-decoration-none" href="/wallet">← Back to wallet</a>
+    </form>
+  </div>
+
+  <script>
+    const buttons = document.querySelectorAll('.amount-btn');
+    const input = document.getElementById('amountInput');
+    buttons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        buttons.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        input.value = Number(btn.dataset.amt).toFixed(2);
+      });
+    });
+  </script>
+</body>
+</html>

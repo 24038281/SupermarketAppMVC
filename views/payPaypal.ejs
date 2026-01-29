@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Pay with PayPal</title>
+  <style>
+    body { font-family: system-ui, -apple-system, sans-serif; margin: 0; padding: 24px; background:#f8f9fb; }
+    .card { max-width: 520px; margin: 0 auto; background: #fff; border-radius: 12px; padding: 20px 24px; box-shadow: 0 10px 24px rgba(0,0,0,0.08); }
+    h1 { margin: 0 0 4px; font-size: 22px; }
+    .sub { color:#6b7280; margin:0 0 16px; }
+    .amount { font-weight:700; font-size: 20px; margin: 12px 0 20px; }
+    .back { display:inline-block; margin-top:16px; color:#2563eb; text-decoration:none; font-weight:600; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Complete Payment</h1>
+    <p class="sub">Order #<%= orderId %></p>
+    <div class="amount">Amount: $<%= amount %></div>
+    <div id="paypal-button-container"></div>
+    <a class="back" href="/invoice/<%= orderId %>">Back to Invoice</a>
+  </div>
+
+  <script src="https://www.paypal.com/sdk/js?client-id=<%= paypalClientId %>&currency=SGD"></script>
+  <script>
+    (function(){
+      const orderId = <%- JSON.stringify(orderId) %>;
+      const amount = <%- JSON.stringify(amount) %>;
+
+      async function createOrderOnServer() {
+        const res = await fetch('/api/paypal/create-order', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ amount, orderId })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.id) throw new Error(data.error || 'Failed to create PayPal order');
+        return data.id;
+      }
+
+      async function captureOnServer(paypalOrderId) {
+        const res = await fetch('/api/paypal/capture-order', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ orderID: paypalOrderId, orderId })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.redirectUrl) throw new Error(data.error || 'Failed to capture PayPal order');
+        window.location.href = data.redirectUrl;
+      }
+
+      if (window.paypal && typeof paypal.Buttons === 'function') {
+        paypal.Buttons({
+          createOrder: createOrderOnServer,
+          onApprove: function(data){ return captureOnServer(data.orderID); },
+          onCancel: async function(){
+            try { await fetch('/api/paypal/cancel', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ orderId })
+            }); } catch(e) { console.warn('cancel notify failed', e); }
+            window.location.href = `/invoice/${orderId}`;
+          },
+          onError: function(err){ alert('PayPal failed. Please retry.'); console.error(err); }
+        }).render('#paypal-button-container');
+      } else {
+        alert('PayPal SDK failed to load.');
+      }
+    })();
+  </script>
+</body>
+</html>

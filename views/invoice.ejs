@@ -26,6 +26,17 @@
             padding: 30px 40px;
         }
 
+        .status-banner {
+            padding: 12px 16px;
+            border-radius: 10px;
+            font-weight: 600;
+            margin-bottom: 16px;
+        }
+
+        .banner-success { background: #e6f4ea; color: #1d7a32; border: 1px solid #c7e6d0; }
+        .banner-failed { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
+        .banner-pending { background: #fff7ed; color: #9a3412; border: 1px solid #fed7aa; }
+
         .invoice-header {
             display: flex;
             justify-content: space-between;
@@ -143,6 +154,48 @@
             border-color: #9ca3af;
         }
 
+        .actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 28px;
+        }
+
+        .btn-primary {
+            display: inline-block;
+            padding: 10px 16px;
+            border-radius: 999px;
+            border: none;
+            background: #2563eb;
+            color: #ffffff;
+            text-decoration: none;
+            font-weight: 600;
+            box-shadow: 0 8px 18px rgba(37, 99, 235, 0.22);
+            transition: transform 0.1s ease, box-shadow 0.1s ease;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 10px 22px rgba(37, 99, 235, 0.26);
+        }
+
+        .btn-ghost {
+            display: inline-block;
+            padding: 10px 16px;
+            border-radius: 999px;
+            border: 1px solid #d1d5db;
+            background: #ffffff;
+            color: #374151;
+            text-decoration: none;
+            font-weight: 600;
+            transition: all 0.15s ease-in-out;
+        }
+
+        .btn-ghost:hover {
+            background: #f3f4f6;
+            border-color: #9ca3af;
+        }
+
         @media (max-width: 640px) {
             body {
                 padding: 12px;
@@ -165,12 +218,46 @@
 </head>
 <body>
 <div class="invoice-wrapper">
+    <%
+        const payStatus = String(order.payment_status || order.status || 'PENDING').toUpperCase().trim();
+        const isPaid = payStatus === 'PAID' || payStatus === 'SUCCESS';
+        const isCancelled = payStatus === 'CANCELLED' || payStatus.includes('CANCEL');
+        const isExpired = payStatus === 'EXPIRED' || payStatus.includes('EXPIRE') || payStatus === 'TIMEOUT';
+        const isFailed = payStatus === 'FAILED' || isCancelled || isExpired;
+        const isPending = !isPaid && !isFailed;
+        const statusLabel = isPaid
+            ? 'Paid'
+            : (isCancelled ? 'Payment Cancelled'
+                : (isExpired ? 'Payment Expired'
+                    : (isFailed ? 'Payment Failed' : 'Payment Pending')));
+        const badgeStyle = isPaid
+            ? 'background:#e5f7eb;color:#198754;'
+            : (isFailed ? 'background:#fee2e2;color:#b91c1c;' : 'background:#fff3cd;color:#b45309;');
+        const paidTime = order.paid_at || order.payment_paid_at;
+        const netsRef = order.nets_txn_ref || order.payment_txn_ref;
+        const paymentMethodRaw = order.payment_method || order.paymentMethod || order.payment_method_recorded;
+        const paymentMethodNormalized = String(paymentMethodRaw || '').toLowerCase().replace(/\s+/g, '_');
+        const refundStatusRaw = String(order.refund_status || '').toUpperCase();
+        let refundStatusLabel = refundStatusRaw || 'NOT REFUNDED';
+        if (refundStatusRaw === 'PENDING' && String(order.payment_method || '').toLowerCase() === 'nets_qr') {
+            refundStatusLabel = 'Refund pending (NETS manual settlement)';
+        } else if (refundStatusRaw === 'REFUNDED') {
+            refundStatusLabel = 'Refunded';
+        }
+        const refundRef = order.refund_txn_ref;
+        const isRefunded = refundStatusRaw === 'REFUNDED';
+        const refundedAt = order.refunded_at;
+        const canRefund = user && user.isPrimaryAdmin && isPaid && refundStatusRaw !== 'REFUNDED';
+        const refundAmount = order.refund_amount;
+        const paymentFailureReason = order.payment_failure_reason;
+    %>
 
     <!-- Header -->
     <div class="invoice-header">
         <div>
-            <p class="invoice-title">Invoice <%= typeof invoiceNumber !== 'undefined' ? invoiceNumber : ('#' + order.id) %></p>
+            <p class="invoice-title"><%= isPaid ? 'Invoice' : 'Invoice (Unpaid)' %></p>
             <p class="invoice-meta">
+                Invoice: <%= typeof invoiceNumber !== 'undefined' ? invoiceNumber : ('#' + order.id) %><br>
                 Date:
                 <%= order.created_at && order.created_at.toLocaleString
                     ? order.created_at.toLocaleString()
@@ -180,12 +267,29 @@
             </p>
         </div>
         <div class="invoice-meta" style="text-align:right;">
-            <span class="badge">Paid</span><br>
+            <span class="badge" style="<%= badgeStyle %>"><%= statusLabel %></span><br>
             <span>Invoice: <%= typeof invoiceNumber !== 'undefined' ? invoiceNumber : ('#' + order.id) %></span><br>
             <span>Supermarket App</span><br>
             <span>Online Purchase</span>
         </div>
     </div>
+
+    <% if (!isPaid) { %>
+    <div class="status-banner <%= isFailed ? 'banner-failed' : 'banner-pending' %>">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+            <span>
+                <%= isCancelled
+                    ? 'Payment Cancelled. Your order is not confirmed. Please retry payment to finalize.'
+                    : (isExpired
+                        ? 'Payment Expired. Your order is not confirmed. Please generate a new QR to pay.'
+                        : (isFailed
+                            ? 'Payment Failed. Your order is not confirmed. Please retry payment to finalize.'
+                            : 'Payment Pending. Please complete payment to confirm your order.')) %>
+            </span>
+            <a class="btn-primary" style="background:#0ea5e9;border:none;box-shadow:0 8px 18px rgba(14,165,233,0.3);" href="/pay/options/<%= order.id %>">Retry Payment</a>
+        </div>
+    </div>
+    <% } %>
 
     <!-- Customer Details -->
     <h2 class="section-title">Customer Details</h2>
@@ -229,7 +333,52 @@
         </tr>
         <tr>
             <th>Payment Method</th>
-            <td><%= order.payment_method || order.paymentMethod || 'N/A' %></td>
+            <td><%= paymentMethodRaw || 'N/A' %></td>
+        </tr>
+        <tr>
+            <th>Payment Status</th>
+            <td><%= statusLabel %><% if (!isPaid && paymentFailureReason) { %> — <span class="text-danger"><%= paymentFailureReason %></span><% } %></td>
+        </tr>
+        <% if (!isPaid && paymentFailureReason === 'INSUFFICIENT_WALLET_BALANCE') { %>
+        <tr>
+            <th>Payment Note</th>
+            <td>Wallet insufficient, please retry using NETS or PayPal.</td>
+        </tr>
+        <% } %>
+        <tr>
+            <th>Refund Status</th>
+            <td><%= refundStatusLabel %></td>
+        </tr>
+        <% if (refundAmount) { %>
+        <tr>
+            <th>Refund Amount</th>
+            <td>$<%= Number(refundAmount).toFixed(2) %></td>
+        </tr>
+        <% } %>
+        <% if (paidTime) { %>
+        <tr>
+            <th>Paid At</th>
+            <td><%= new Date(paidTime).toLocaleString() %></td>
+        </tr>
+        <% } %>
+        <% if (netsRef) { %>
+        <tr>
+            <th>NETS Txn Ref</th>
+            <td><%= netsRef %></td>
+        </tr>
+        <% } %>
+        <% if (isRefunded && refundedAt) { %>
+        <tr>
+            <th>Refunded At</th>
+            <td><%= new Date(refundedAt).toLocaleString() %></td>
+        </tr>
+        <% } %>
+        <% if (refundRef) { %>
+        <tr>
+            <th>Refund Ref</th>
+            <td><%= refundRef %></td>
+        </tr>
+        <% } %>
         </tr>
         <tr>
             <th>Delivery Date</th>
@@ -285,17 +434,39 @@
             <span class="discount">- $<%= Number(order.loyalty_discount || 0).toFixed(2) %></span>
         </div>
         <div class="summary-row total">
-            <span>Total Paid</span>
+            <span><%= isPaid ? 'Total Paid' : 'Amount Due' %></span>
             <span>$<%= Number(order.final_total || 0).toFixed(2) %></span>
         </div>
     </div>
 
-    <% if (user && user.isPrimaryAdmin) { %>
-    <a class="btn-back" href="/admin/invoices">Back to All Invoices</a>
-    <% } else { %>
-    <a class="btn-back" href="/shopping">Back to Shopping</a>
-    <a class="btn-back" href="/orders">Back to Purchase History</a>
-    <% } %>
+    <div class="actions">
+        <a class="btn-ghost" href="/orders">Back to Orders</a>
+        <% if (!isFailed && !isPending && user && user.isPrimaryAdmin) { %>
+            <a class="btn-ghost" href="/admin/invoices">Back to All Invoices</a>
+        <% } else if (!isFailed && !isPending) { %>
+            <a class="btn-ghost" href="/shopping">Back to Shopping</a>
+        <% } %>
+        <% if (canRefund) {
+            const paymentMethodLower = String(order.payment_method || '').toLowerCase();
+            const refundAction =
+                paymentMethodLower === 'paypal'
+                    ? `/admin/refund/${order.id}`
+                    : paymentMethodLower === 'nets_qr'
+                        ? `/admin/refund/nets/${order.id}`
+                        : `/admin/orders/${order.id}/refund`; // wallet/default
+        %>
+            <form method="POST" action="<%= refundAction %>" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+                <input type="number" step="0.01" min="0.01" name="amount" placeholder="Full refund by default" style="padding:8px 10px;border:1px solid #d1d5db;border-radius:8px;max-width:160px;">
+                <input type="text" name="reason" placeholder="Reason (optional)" style="padding:8px 10px;border:1px solid #d1d5db;border-radius:8px;min-width:180px;">
+                <button class="btn-primary" type="submit">Process Refund</button>
+            </form>
+        <% } %>
+        <% if (user && user.isPrimaryAdmin && refundRow && String(refundRow.method || '').toLowerCase() === 'nets_qr' && String(refundRow.status || '').toUpperCase() === 'REQUESTED') { %>
+            <form method="POST" action="/admin/refunds/nets/<%= refundRow.id %>/complete" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px;">
+                <button class="btn-ghost" type="submit">Mark NETS Refund Completed</button>
+            </form>
+        <% } %>
+    </div>
 </div>
 </body>
 </html>

@@ -1,6 +1,9 @@
 const express = require('express');
 const connection = require('../config/db');
 const { checkAuthenticated, checkAdmin } = require('../middleware');
+const { restockInventoryForOrder } = require('../services/orderFinalizer');
+const walletService = require('../services/walletService');
+const paypal = require('../services/paypal');
 
 const router = express.Router();
 function formatInvoiceNumber(id) {
@@ -114,6 +117,463 @@ router.post('/admin/membership-plans/:id', checkAuthenticated, checkAdmin, (req,
 router.post('/admin/membership-plans/:id/delete', checkAuthenticated, checkAdmin, (req, res) => {
   req.flash('error', 'Plan editing is disabled on this page (read-only).');
   return res.redirect('/admin/membership-plans');
+});
+
+// Admin: Refund PayPal-paid order back to PayPal (provider refund)
+router.post('/admin/refund/:orderId', checkAuthenticated, checkAdmin, async (req, res) => {
+  const orderId = parseInt(req.params.orderId, 10);
+  const reason = (req.body.reason || '').slice(0, 255) || null;
+  const amountRaw = req.body.amount;
+  const redirectTo = `/invoice/${orderId}`;
+  if (!orderId || Number.isNaN(orderId)) {
+    req.flash('error', 'Invalid order id for refund.');
+    return res.redirect('/orders');
+  }
+
+  const conn = connection.promise();
+  let refundRowId = null;
+  let amountCents = null;
+  let captureId = null;
+  let paymentId = null;
+  let providerRefundId = null;
+
+  // ---- Phase 1: validate + mark refund pending ----
+  try {
+    await conn.beginTransaction();
+    const [orders] = await conn.query('SELECT * FROM orders WHERE id = ? FOR UPDATE', [orderId]);
+    if (!orders.length) {
+      await conn.rollback();
+      req.flash('error', 'Order not found.');
+      return res.redirect(redirectTo);
+    }
+    const order = orders[0];
+    const method = (order.payment_method || '').toLowerCase();
+    if (method !== 'paypal') {
+      await conn.rollback();
+      req.flash('error', 'This refund route handles PayPal-paid orders only.');
+      return res.redirect(redirectTo);
+    }
+    if (String(order.payment_status || '').toUpperCase() !== 'PAID') {
+      await conn.rollback();
+      req.flash('error', 'Only paid orders can be refunded.');
+      return res.redirect(redirectTo);
+    }
+    const currentRefundStatus = String(order.refund_status || '').toUpperCase();
+    if (['PENDING', 'REFUNDED'].includes(currentRefundStatus)) {
+      await conn.rollback();
+      req.flash('error', 'Refund already in progress or completed.');
+      return res.redirect(redirectTo);
+    }
+    captureId = order.paypal_capture_id;
+    if (!captureId) {
+      await conn.rollback();
+      req.flash('error', 'Missing PayPal capture id; cannot process refund.');
+      return res.redirect(redirectTo);
+    }
+
+    const amountDecimal = amountRaw
+      ? Number(parseFloat(amountRaw).toFixed(2))
+      : Number(order.final_total ?? order.amount ?? order.subtotal ?? 0);
+    if (!Number.isFinite(amountDecimal) || amountDecimal <= 0) {
+      await conn.rollback();
+      req.flash('error', 'Refund amount must be greater than 0.');
+      return res.redirect(redirectTo);
+    }
+    const maxAmount = Number(order.final_total ?? order.amount ?? order.subtotal ?? amountDecimal);
+    const normalizedAmount = Math.min(amountDecimal, maxAmount);
+    amountCents = Math.round(normalizedAmount * 100);
+
+    // Ensure a payment row exists for linkage
+    const [payments] = await conn.query(
+      'SELECT * FROM payments WHERE order_id = ? AND method = ? LIMIT 1 FOR UPDATE',
+      [orderId, 'paypal']
+    );
+    if (payments && payments.length) {
+      paymentId = payments[0].id;
+      await conn.query('UPDATE payments SET status = ? WHERE id = ?', ['REFUND_PENDING', paymentId]);
+    } else {
+      const [paymentInsert] = await conn.query(
+        `INSERT INTO payments (order_id, user_id, method, amount_cents, status, provider_order_id, provider_capture_id)
+         VALUES (?, ?, 'paypal', ?, 'REFUND_PENDING', ?, ?)`,
+        [orderId, order.user_id || null, amountCents, order.paypal_order_id || null, captureId]
+      );
+      paymentId = paymentInsert.insertId;
+    }
+
+    // Create refund row marked PROCESSING
+    const [refundInsert] = await conn.query(
+      `INSERT INTO refunds (order_id, payment_id, method, amount_cents, status, reason)
+       VALUES (?, ?, 'paypal', ?, 'PROCESSING', ?)`,
+      [orderId, paymentId, amountCents, reason]
+    );
+    refundRowId = refundInsert.insertId;
+
+    await conn.query(
+      `UPDATE orders
+         SET refund_status = 'PENDING',
+             refund_amount = ?,
+             refund_reason = ?,
+             refund_txn_ref = NULL,
+             refunded_at = NULL
+       WHERE id = ?`,
+      [normalizedAmount, reason, orderId]
+    );
+
+    await conn.commit();
+  } catch (err) {
+    try { await conn.rollback(); } catch (_) {}
+    console.error('[Admin Refund][PayPal] validation/pending failed', err);
+    req.flash('error', 'Failed to start PayPal refund: ' + err.message);
+    return res.redirect(redirectTo);
+  }
+
+  // ---- Phase 2: call PayPal refund API ----
+  let refundPayload = null;
+  try {
+    refundPayload = await paypal.refundCapture(captureId, (amountCents / 100).toFixed(2), 'SGD');
+    providerRefundId = refundPayload?.id || refundPayload?.result?.id || null;
+  } catch (err) {
+    const isRateLimit = err.rateLimited || err.response?.status === 429;
+    const msg = isRateLimit ? 'PayPal rate limited; try again shortly.' : (err.response?.data?.message || err.message);
+    // ---- Phase 3a: persist failure ----
+    try {
+      await conn.beginTransaction();
+      if (refundRowId) {
+        await conn.query(
+          `UPDATE refunds
+              SET status = 'FAILED',
+                  provider_refund_id = COALESCE(?, provider_refund_id),
+                  updated_at = NOW()
+            WHERE id = ?`,
+          [providerRefundId, refundRowId]
+        );
+      }
+      if (paymentId) {
+        await conn.query('UPDATE payments SET status = ? WHERE id = ?', ['REFUND_FAILED', paymentId]);
+      }
+      await conn.query(
+        `UPDATE orders
+           SET refund_status = 'FAILED',
+               refund_txn_ref = COALESCE(?, refund_txn_ref),
+               refund_reason = COALESCE(?, refund_reason)
+         WHERE id = ?`,
+        [providerRefundId, msg, orderId]
+      );
+      await conn.commit();
+    } catch (dbErr) {
+      try { await conn.rollback(); } catch (_) {}
+      console.error('[Admin Refund][PayPal] failed-state persist error', dbErr);
+    }
+
+    req.flash('error', msg);
+    return res.redirect(redirectTo);
+  }
+
+  // ---- Phase 3b: persist success ----
+  try {
+    await conn.beginTransaction();
+    if (refundRowId) {
+      await conn.query(
+        `UPDATE refunds
+            SET status = 'COMPLETED',
+                provider_refund_id = ?,
+                updated_at = NOW()
+          WHERE id = ?`,
+        [providerRefundId, refundRowId]
+      );
+    }
+    if (paymentId) {
+      await conn.query('UPDATE payments SET status = ? WHERE id = ?', ['REFUNDED', paymentId]);
+    }
+    const fullRefundTotal = Number(order.final_total ?? order.amount ?? order.subtotal ?? 0);
+    if (amountCents === Math.round(fullRefundTotal * 100)) {
+      const [items] = await conn.query(
+        'SELECT product_id, quantity FROM order_items WHERE order_id = ? FOR UPDATE',
+        [orderId]
+      );
+      await restockInventoryForOrder(conn, orderId, items);
+      const earnedPoints = Number(order.loyalty_points_earned || 0);
+      if (earnedPoints > 0 && order.user_id) {
+        await conn.query(
+          'UPDATE users SET loyalty_points = GREATEST(COALESCE(loyalty_points,0) - ?, 0) WHERE id = ?',
+          [earnedPoints, order.user_id]
+        );
+      }
+    }
+    await conn.query(
+      `UPDATE orders
+         SET refund_status = 'REFUNDED',
+             refund_txn_ref = ?,
+             refunded_at = NOW()
+       WHERE id = ?`,
+      [providerRefundId, orderId]
+    );
+    await conn.commit();
+    req.flash('success', 'PayPal refund completed.');
+  } catch (err) {
+    try { await conn.rollback(); } catch (_) {}
+    console.error('[Admin Refund][PayPal] success persist failed', err);
+    req.flash('error', 'Refund completed at PayPal but failed to record locally: ' + err.message);
+  }
+
+  return res.redirect(redirectTo);
+});
+
+// NETS QR: create refund request (no automatic provider refund)
+router.post('/admin/refund/nets/:orderId', checkAuthenticated, checkAdmin, async (req, res) => {
+  const orderId = parseInt(req.params.orderId, 10);
+  const reason = (req.body.reason || '').slice(0, 255) || null;
+  const amountRaw = req.body.amount;
+  const redirectTo = `/invoice/${orderId}`;
+  if (!orderId || Number.isNaN(orderId)) {
+    req.flash('error', 'Invalid order id for NETS refund.');
+    return res.redirect('/orders');
+  }
+
+  const conn = connection.promise();
+  try {
+    await conn.beginTransaction();
+    const [orders] = await conn.query('SELECT * FROM orders WHERE id = ? FOR UPDATE', [orderId]);
+    if (!orders.length) {
+      await conn.rollback();
+      req.flash('error', 'Order not found.');
+      return res.redirect(redirectTo);
+    }
+    const order = orders[0];
+    const method = String(order.payment_method || '').toLowerCase();
+    const payStatus = String(order.payment_status || '').toUpperCase();
+    if (method !== 'nets_qr') {
+      await conn.rollback();
+      req.flash('error', 'This NETS refund endpoint is only for NETS QR payments.');
+      return res.redirect(redirectTo);
+    }
+    if (payStatus !== 'PAID') {
+      await conn.rollback();
+      req.flash('error', 'Only paid orders can be refunded.');
+      return res.redirect(redirectTo);
+    }
+    const currentRefundStatus = String(order.refund_status || '').toUpperCase();
+    if (['PENDING', 'REFUNDED'].includes(currentRefundStatus)) {
+      await conn.rollback();
+      req.flash('error', 'Refund already in progress or completed.');
+      return res.redirect(redirectTo);
+    }
+
+    const amountDecimal = amountRaw
+      ? Number(parseFloat(amountRaw).toFixed(2))
+      : Number(order.final_total ?? order.amount ?? order.subtotal ?? 0);
+    if (!Number.isFinite(amountDecimal) || amountDecimal <= 0) {
+      await conn.rollback();
+      req.flash('error', 'Refund amount must be greater than 0.');
+      return res.redirect(redirectTo);
+    }
+    const maxAmount = Number(order.final_total ?? order.amount ?? order.subtotal ?? amountDecimal);
+    const normalizedAmount = Math.min(amountDecimal, maxAmount);
+    const amountCents = Math.round(normalizedAmount * 100);
+
+    // Ensure payment row exists
+    let paymentId = null;
+    const [payments] = await conn.query(
+      'SELECT * FROM payments WHERE order_id = ? AND method = ? LIMIT 1 FOR UPDATE',
+      [orderId, 'nets_qr']
+    );
+    if (payments && payments.length) {
+      paymentId = payments[0].id;
+      await conn.query('UPDATE payments SET status = ? WHERE id = ?', ['REFUND_PENDING', paymentId]);
+    } else {
+      const [payInsert] = await conn.query(
+        `INSERT INTO payments (order_id, user_id, method, amount_cents, status, nets_txn_ref)
+         VALUES (?, ?, 'nets_qr', ?, 'REFUND_PENDING', ?)`,
+        [orderId, order.user_id || null, amountCents, order.nets_txn_ref || null]
+      );
+      paymentId = payInsert.insertId;
+    }
+
+    const rand = Math.floor(1000 + Math.random() * 9000);
+    const datePart = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    const netsRefundRef = `NETS-RF-${datePart}-${orderId}-${rand}`;
+
+    const [refundInsert] = await conn.query(
+      `INSERT INTO refunds (order_id, payment_id, method, amount_cents, status, nets_refund_ref, reason)
+       VALUES (?, ?, 'nets_qr', ?, 'REQUESTED', ?, ?)`,
+      [orderId, paymentId, amountCents, netsRefundRef, reason]
+    );
+
+    await conn.query(
+      `UPDATE orders
+         SET refund_status = 'PENDING',
+             refund_amount = ?,
+             refund_reason = ?,
+             refund_txn_ref = ?,
+             refunded_at = NULL
+       WHERE id = ?`,
+      [normalizedAmount, reason, netsRefundRef, orderId]
+    );
+
+    await conn.commit();
+    req.flash('success', 'NETS refund request recorded. Awaiting manual completion.');
+  } catch (err) {
+    try { await conn.rollback(); } catch (_) {}
+    console.error('[Admin Refund][NETS] failed', err);
+    req.flash('error', 'Failed to create NETS refund request: ' + err.message);
+  }
+
+  return res.redirect(redirectTo);
+});
+
+// NETS QR: mark refund completed (manual)
+router.post('/admin/refunds/nets/:refundId/complete', checkAuthenticated, checkAdmin, async (req, res) => {
+  const refundId = parseInt(req.params.refundId, 10);
+  if (!refundId) {
+    req.flash('error', 'Missing refund id.');
+    return res.redirect('/orders');
+  }
+  const conn = connection.promise();
+  try {
+    await conn.beginTransaction();
+    const [rows] = await conn.query(
+      `SELECT r.*, o.user_id, o.final_total, o.subtotal, o.id AS order_id, o.loyalty_points_earned
+         FROM refunds r
+         JOIN orders o ON o.id = r.order_id
+        WHERE r.id = ? FOR UPDATE`,
+      [refundId]
+    );
+    if (!rows.length) {
+      await conn.rollback();
+      req.flash('error', 'Refund not found.');
+      return res.redirect('/orders');
+    }
+    const refund = rows[0];
+    if (refund.method !== 'nets_qr') {
+      await conn.rollback();
+      req.flash('error', 'This endpoint is only for NETS refunds.');
+      return res.redirect(`/invoice/${refund.order_id}`);
+    }
+    if (!['REQUESTED', 'PROCESSING'].includes(String(refund.status).toUpperCase())) {
+      await conn.rollback();
+      req.flash('error', 'Refund is not in a completable state.');
+      return res.redirect(`/invoice/${refund.order_id}`);
+    }
+
+    const fullRefundTotal = Number(refund.final_total ?? refund.subtotal ?? 0);
+    if (refund.amount_cents === Math.round(fullRefundTotal * 100)) {
+      const [items] = await conn.query(
+        'SELECT product_id, quantity FROM order_items WHERE order_id = ? FOR UPDATE',
+        [refund.order_id]
+      );
+      await restockInventoryForOrder(conn, refund.order_id, items);
+      const earnedPoints = Number(refund.loyalty_points_earned || 0);
+      if (earnedPoints > 0 && refund.user_id) {
+        await conn.query(
+          'UPDATE users SET loyalty_points = GREATEST(COALESCE(loyalty_points,0) - ?, 0) WHERE id = ?',
+          [earnedPoints, refund.user_id]
+        );
+      }
+    }
+
+    await conn.query(
+      `UPDATE refunds
+          SET status = 'COMPLETED',
+              settlement_method = 'NETS_MANUAL',
+              settled_at = NOW(),
+              updated_at = NOW()
+        WHERE id = ?`,
+      [refundId]
+    );
+    if (refund.payment_id) {
+      await conn.query('UPDATE payments SET status = \'REFUNDED\' WHERE id = ?', [refund.payment_id]);
+    }
+    await conn.query(
+      `UPDATE orders
+         SET refund_status = 'REFUNDED',
+             refund_txn_ref = COALESCE(refund_txn_ref, ?),
+             refunded_at = NOW()
+       WHERE id = ?`,
+      [refund.nets_refund_ref || null, refund.order_id]
+    );
+
+    await conn.commit();
+    req.flash('success', 'NETS refund marked as completed.');
+    return res.redirect(`/invoice/${refund.order_id}`);
+  } catch (err) {
+    try { await conn.rollback(); } catch (_) {}
+    console.error('[Admin Refund][NETS complete] failed', err);
+    req.flash('error', 'Failed to mark refund completed: ' + err.message);
+    return res.redirect('/orders');
+  }
+});
+
+// Wallet fallback for failed provider refunds (PayPal/NETS)
+router.post('/admin/refunds/:refundId/refund-to-wallet', checkAuthenticated, checkAdmin, async (req, res) => {
+  const refundId = parseInt(req.params.refundId, 10);
+  if (!refundId) {
+    req.flash('error', 'Missing refund id.');
+    return res.redirect('/orders');
+  }
+  try {
+    const [rows] = await connection.promise().query(
+      `SELECT r.*, o.user_id, o.id AS order_id, p.status AS payment_status, p.id AS payment_id
+         FROM refunds r
+         JOIN orders o ON o.id = r.order_id
+         LEFT JOIN payments p ON p.id = r.payment_id
+        WHERE r.id = ?`,
+      [refundId]
+    );
+    if (!rows.length) {
+      await conn.rollback();
+      req.flash('error', 'Refund not found.');
+      return res.redirect('/orders');
+    }
+    const refund = rows[0];
+    const method = String(refund.method || '').toLowerCase();
+    const status = String(refund.status || '').toUpperCase();
+    if (!['nets_qr', 'paypal'].includes(method) || status !== 'FAILED') {
+      await conn.rollback();
+      req.flash('error', 'Wallet fallback allowed only for failed NETS or PayPal refunds.');
+      return res.redirect(`/invoice/${refund.order_id}`);
+    }
+    if (!refund.user_id) {
+      await conn.rollback();
+      req.flash('error', 'Refund has no associated user for wallet credit.');
+      return res.redirect(`/invoice/${refund.order_id}`);
+    }
+
+    const amount = Number(refund.amount_cents || 0) / 100;
+    await walletService.ensureWallet(refund.user_id);
+    await walletService.creditWallet({
+      userId: refund.user_id,
+      amount: amount,
+      orderId: refund.order_id,
+      reason: 'Refund wallet fallback',
+      reference: 'WALLET-FALLBACK'
+    });
+
+    await connection.promise().query(
+      `UPDATE refunds
+          SET status = 'COMPLETED',
+              updated_at = NOW(),
+              nets_refund_ref = COALESCE(nets_refund_ref, 'WALLET-FALLBACK')
+        WHERE id = ? AND status = 'FAILED'`,
+      [refundId]
+    );
+    if (refund.payment_id) {
+      await connection.promise().query('UPDATE payments SET status = \'REFUNDED\' WHERE id = ?', [refund.payment_id]);
+    }
+    await connection.promise().query(
+      `UPDATE orders
+         SET refund_status = 'REFUNDED',
+             refund_txn_ref = COALESCE(refund_txn_ref, 'WALLET-FALLBACK'),
+             refunded_at = NOW()
+       WHERE id = ? AND refund_status = 'FAILED'`,
+      [refund.order_id]
+    );
+    req.flash('success', 'Refund credited to wallet as fallback.');
+    return res.redirect(`/invoice/${refund.order_id}`);
+  } catch (err) {
+    console.error('[Admin Refund][Wallet fallback] failed', err);
+    req.flash('error', 'Failed to credit wallet: ' + err.message);
+    return res.redirect('/orders');
+  }
 });
 
 // Admin: update loyalty points for a specific user
@@ -411,14 +871,160 @@ router.get('/admin/invoices/:id', checkAuthenticated, checkAdmin, (req, res) => 
         return res.redirect('/admin/invoices');
       }
 
-      res.render('invoice', {
-        user: req.session.user,
-        order,
-        items: itemRows,
-        invoiceNumber
-      });
+      connection.query(
+        'SELECT * FROM refunds WHERE order_id = ? ORDER BY id DESC LIMIT 1',
+        [orderId],
+        (rErr, refundRows) => {
+          if (rErr) {
+            console.error('Failed to load refund info', rErr);
+          }
+          const refundRow = refundRows && refundRows[0] ? refundRows[0] : null;
+          res.render('invoice', {
+            user: req.session.user,
+            order,
+            items: itemRows,
+            invoiceNumber,
+            refundRow
+          });
+        }
+      );
     });
   });
+});
+
+// Admin: Refund an order (credits in-app wallet) — only for wallet-paid orders
+router.post('/admin/orders/:orderId/refund', checkAuthenticated, checkAdmin, async (req, res) => {
+  const orderId = parseInt(req.params.orderId, 10);
+  const redirectTo = (req.get('referer') && req.get('referer').includes('/invoice/'))
+    ? req.get('referer')
+    : `/invoice/${orderId}`;
+  if (!orderId || Number.isNaN(orderId)) {
+    req.flash('error', 'Invalid order id');
+    return res.redirect('/admin/invoices');
+  }
+
+  const amountRaw = (req.body.amount || '').toString().trim();
+  const reason = (req.body.reason || '').trim() || null;
+  const conn = connection.promise();
+  let order;
+  let refundAmount;
+  const REF_REF = 'WALLET';
+
+  try {
+    await conn.beginTransaction();
+    const [rows] = await conn.query('SELECT * FROM orders WHERE id = ? FOR UPDATE', [orderId]);
+    if (!rows || !rows.length) {
+      await conn.rollback();
+      req.flash('error', 'Order not found');
+      return res.redirect('/admin/invoices');
+    }
+    order = rows[0];
+    const payMethod = String(order.payment_method || '').toLowerCase();
+    if (payMethod !== 'wallet') {
+      await conn.rollback();
+      req.flash('error', 'Use the PayPal or NETS refund actions for non-wallet payments.');
+      return res.redirect(redirectTo);
+    }
+    if (!order.user_id) {
+      await conn.rollback();
+      req.flash('error', 'Refund failed: order has no user linked.');
+      return res.redirect(redirectTo);
+    }
+    const payStatus = String(order.payment_status || '').toUpperCase();
+    if (payStatus !== 'PAID') {
+      await conn.rollback();
+      req.flash('error', 'Only paid orders can be refunded.');
+      return res.redirect(redirectTo);
+    }
+    const currentRefundStatus = String(order.refund_status || '').toUpperCase();
+    if (currentRefundStatus === 'REFUNDED') {
+      await conn.rollback();
+      req.flash('error', 'Order has already been refunded.');
+      return res.redirect(redirectTo);
+    }
+
+    const fallbackTotal = Number(order.final_total ?? order.amount ?? order.subtotal ?? 0);
+    refundAmount = amountRaw ? Number(parseFloat(amountRaw).toFixed(2)) : fallbackTotal;
+    if (!Number.isFinite(refundAmount) || refundAmount <= 0) {
+      await conn.rollback();
+      req.flash('error', 'Refund amount must be greater than 0.');
+      return res.redirect(redirectTo);
+    }
+    if (refundAmount > fallbackTotal) refundAmount = fallbackTotal;
+
+    await conn.query(
+      `UPDATE orders
+         SET refund_status = 'PENDING',
+             refund_amount = ?,
+             refund_reason = ?,
+             refund_txn_ref = NULL,
+             refunded_at = NULL
+       WHERE id = ?`,
+      [refundAmount, reason, orderId]
+    );
+    await conn.commit();
+  } catch (err) {
+    console.error('Failed to mark refund pending', err);
+    try { await conn.rollback(); } catch (_) { /* ignore */ }
+    req.flash('error', 'Unable to start refund: ' + err.message);
+    return res.redirect(redirectTo);
+  }
+
+  // Credit to wallet
+  try {
+    await walletService.ensureWallet(order.user_id);
+    await walletService.creditWallet({
+      userId: order.user_id,
+      amount: refundAmount,
+      orderId,
+      reason: reason || 'Order refund',
+      reference: REF_REF
+    });
+  } catch (err) {
+    console.error('Wallet credit failed', err);
+    await conn.query(`UPDATE orders SET refund_status = 'FAILED' WHERE id = ?`, [orderId]);
+    req.flash('error', 'Refund failed to credit wallet: ' + err.message);
+    return res.redirect(redirectTo);
+  }
+
+  // Finalize refund + optional restock on full refund
+  try {
+    await conn.beginTransaction();
+    const fullRefundTotal = Number(order.final_total ?? order.amount ?? order.subtotal ?? 0);
+    if (refundAmount === fullRefundTotal) {
+      const [items] = await conn.query(
+        'SELECT product_id, quantity FROM order_items WHERE order_id = ? FOR UPDATE',
+        [orderId]
+      );
+      await restockInventoryForOrder(conn, orderId, items);
+      const earnedPoints = Number(order.loyalty_points_earned || 0);
+      if (earnedPoints > 0 && order.user_id) {
+        await conn.query(
+          'UPDATE users SET loyalty_points = GREATEST(COALESCE(loyalty_points,0) - ?, 0) WHERE id = ?',
+          [earnedPoints, order.user_id]
+        );
+      }
+    }
+    await conn.query(
+      `UPDATE orders
+         SET refund_status = 'REFUNDED',
+             refund_txn_ref = ?,
+             refunded_at = NOW(),
+             refund_amount = ?,
+             refund_reason = COALESCE(?, refund_reason)
+       WHERE id = ?`,
+      [REF_REF, refundAmount, reason, orderId]
+    );
+    await conn.commit();
+    req.flash('success', `Refund of $${refundAmount.toFixed(2)} credited to wallet.`);
+  } catch (err) {
+    console.error('Failed to finalize refund', err);
+    try { await conn.rollback(); } catch (_) { /* ignore */ }
+    await conn.query(`UPDATE orders SET refund_status = 'FAILED' WHERE id = ?`, [orderId]);
+    req.flash('error', 'Refund credited but failed to record locally: ' + err.message);
+  }
+
+  return res.redirect(redirectTo);
 });
 
 module.exports = router;

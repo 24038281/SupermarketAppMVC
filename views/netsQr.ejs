@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title><%= title %></title>
+  <script src="https://unpkg.com/event-source-polyfill"></script>
+
+  <style>
+    :root {
+      --bg: #f6f7fb;
+      --card: #ffffff;
+      --text: #111827;
+      --muted: #6b7280;
+      --border: #e5e7eb;
+      --primary: #2563eb;
+      --danger: #dc2626;
+      --success: #16a34a;
+      --shadow: 0 12px 28px rgba(17, 24, 39, 0.12);
+      --radius: 16px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: radial-gradient(1200px 600px at 20% 0%, #eef2ff 0%, rgba(238,242,255,0) 60%),
+                  radial-gradient(1200px 600px at 80% 0%, #ecfeff 0%, rgba(236,254,255,0) 60%),
+                  var(--bg);
+      color: var(--text);
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    .wrap {
+      width: 100%;
+      max-width: 980px;
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 16px;
+    }
+
+    @media (min-width: 900px) {
+      .wrap { grid-template-columns: 1.2fr 0.8fr; }
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .card-header {
+      padding: 20px 20px 12px 20px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .title {
+      margin: 0;
+      font-size: 20px;
+      line-height: 1.2;
+      font-weight: 800;
+      letter-spacing: -0.01em;
+    }
+
+    .subtitle {
+      margin: 6px 0 0 0;
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.4;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+      border-radius: 999px;
+      background: #f1f5f9;
+      border: 1px solid var(--border);
+      font-size: 12px;
+      color: #0f172a;
+      white-space: nowrap;
+      user-select: none;
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: var(--primary);
+      box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.10);
+    }
+
+    .card-body {
+      padding: 18px 20px 20px 20px;
+      display: grid;
+      gap: 14px;
+    }
+
+    .instruction {
+      margin: 0;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    /* Keep #status ID exactly as-is */
+    #status {
+      margin: 0;
+      font-size: 14px;
+      line-height: 1.5;
+      padding: 12px 12px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: #f8fafc;
+      color: #0f172a;
+    }
+
+    #status.is-success {
+      border-color: rgba(22, 163, 74, 0.35);
+      background: rgba(22, 163, 74, 0.08);
+      color: #14532d;
+    }
+
+    #status.is-fail {
+      border-color: rgba(220, 38, 38, 0.35);
+      background: rgba(220, 38, 38, 0.08);
+      color: #7f1d1d;
+    }
+
+    .qr-area {
+      display: grid;
+      place-items: center;
+      padding: 16px;
+      border: 1px dashed var(--border);
+      border-radius: 14px;
+      background: #ffffff;
+    }
+
+    .qr-img {
+      width: min(280px, 70vw);
+      height: auto;
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      background: #fff;
+      padding: 8px;
+    }
+
+    .meta-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    /* Keep #timer ID exactly as-is */
+    #timer {
+      margin: 0;
+      font-weight: 800;
+      font-size: 14px;
+      letter-spacing: 0.01em;
+      color: var(--primary);
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .clock {
+      width: 28px;
+      height: 28px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: #f8fafc;
+      display: grid;
+      place-items: center;
+      font-size: 14px;
+    }
+
+    .hint {
+      font-size: 12px;
+      color: var(--muted);
+      margin: 0;
+      line-height: 1.4;
+    }
+
+    .actions {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      justify-content: flex-end;
+      flex-wrap: wrap;
+      padding-top: 4px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: #fff;
+      color: #0f172a;
+      text-decoration: none;
+      font-weight: 700;
+      font-size: 13px;
+      cursor: pointer;
+      user-select: none;
+      transition: transform 0.05s ease, box-shadow 0.2s ease;
+    }
+
+    .btn:hover {
+      box-shadow: 0 8px 18px rgba(15, 23, 42, 0.10);
+    }
+
+    .btn:active {
+      transform: translateY(1px);
+    }
+
+    .btn.secondary {
+      background: #f8fafc;
+    }
+
+    .side {
+      display: grid;
+      gap: 16px;
+      align-content: start;
+    }
+
+    .side-card {
+      padding: 18px 18px;
+    }
+
+    .side-title {
+      margin: 0 0 8px 0;
+      font-size: 14px;
+      font-weight: 800;
+      color: #0f172a;
+    }
+
+    .side-text {
+      margin: 0;
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    .nets-info {
+      width: 100%;
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      background: #fff;
+    }
+
+    .spinner {
+      width: 16px;
+      height: 16px;
+      border-radius: 999px;
+      border: 2px solid rgba(17, 24, 39, 0.15);
+      border-top-color: rgba(17, 24, 39, 0.65);
+      animation: spin 0.7s linear infinite;
+      display: none;
+    }
+
+    .is-processing .spinner {
+      display: inline-block;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .trust {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--muted);
+      user-select: none;
+    }
+
+    .trust svg { flex: 0 0 auto; }
+
+    .total {
+      font-weight: 900;
+      font-size: 20px;
+      letter-spacing: -0.01em;
+      margin: 0;
+      color: #0f172a;
+    }
+
+    .total-sub {
+      margin: 4px 0 0 0;
+      font-size: 12px;
+      color: var(--muted);
+    }
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+    <!-- Main QR Card -->
+    <div class="card">
+      <div class="card-header">
+        <div>
+          <h1 class="title">NETS QR Payment</h1>
+          <p class="subtitle">Open your bank app and scan the QR code below to complete payment.</p>
+        </div>
+        <div class="pill" title="Live payment status updates">
+          <span class="dot"></span>
+          Live status
+        </div>
+      </div>
+
+      <div class="card-body" id="pageRoot">
+        <!-- Keep #status -->
+        <p id="status">Scan with your bank simulator app to complete payment</p>
+
+        <div class="qr-area">
+          <img class="qr-img" src="<%= qrCodeUrl %>" alt="NETS QR Code" />
+        </div>
+
+        <div class="meta-row">
+          <!-- Keep #timer -->
+          <p id="timer"><span class="clock">⏱</span>Time remaining: 5:00</p>
+
+          <div class="trust" title="Sandbox demo payment flow">
+            <!-- lock icon -->
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M7 11V8a5 5 0 0 1 10 0v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              <path d="M6 11h12a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+            Secure payment powered by NETS
+          </div>
+        </div>
+
+        <p class="hint">
+          <% if (flowType === 'WALLET_TOPUP') { %>
+            After successful payment, your wallet will be credited automatically.
+          <% } else { %>
+            After successful payment, you’ll be redirected to your invoice automatically.
+          <% } %>
+        </p>
+
+        <div class="actions">
+          <span class="spinner" id="spinner" aria-hidden="true"></span>
+          <form method="POST" action="<%= flowType === 'WALLET_TOPUP' ? ('/wallet/topup/nets/' + topupId + '/cancel') : ('/pay/nets/' + (orderId || locals.orderId || '') + '/cancel') %>" style="display:inline;" id="cancelForm">
+            <button class="btn secondary" type="submit" id="cancelBtn">Cancel</button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Side info / summary card -->
+    <div class="card side">
+      <div class="side-card">
+        <p class="side-title">Order summary</p>
+        <p class="total">$<%= total %></p>
+        <p class="total-sub">Total amount to pay</p>
+      </div>
+
+      <div class="side-card">
+        <p class="side-title">How to pay</p>
+        <p class="side-text">
+          1) Open your bank app<br />
+          2) Select “Scan / PayNow / QR Payment”<br />
+          3) Scan the QR code<br />
+          4) Confirm the payment in-app
+        </p>
+      </div>
+
+      <div class="side-card">
+        <p class="side-title">NETS info</p>
+        <img class="nets-info" src="/images/netsQrInfo.png" alt="NETS QR info" />
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /* ===============================
+       SAFE DATA FROM BACKEND
+    =============================== */
+    const txnRetrievalRef = "<%= txnRetrievalRef %>";
+    const orderId = "<%= typeof orderId !== 'undefined' && orderId ? orderId : (locals.orderId || '') %>";
+    const topupId = "<%= topupId || '' %>";
+    const flowType = "<%= flowType || '' %>";
+
+    console.log("ℹ️ netsQr loaded:", { orderId, txnRetrievalRef });
+
+    /* ===============================
+       SSE SETUP
+    =============================== */
+    const sseUrl = `/sse/payment-status/${txnRetrievalRef}`;
+
+    const s2sNetsTxnStatus = new EventSourcePolyfill(sseUrl, {
+      headers: {
+        "api-key": "<%= apiKey %>",
+        "project-id": "<%= projectId %>",
+      },
+      heartbeatTimeout: 150000,
+    });
+
+    const goToInvoice = () => {
+      if (!orderId) {
+        console.warn("⚠️ orderId missing — redirecting to orders page");
+        window.location.href = "/orders";
+        return;
+      }
+      window.location.href = `/invoice/${orderId}`;
+    };
+    const goToWallet = () => { window.location.href = "/wallet"; };
+
+    const statusEl = document.getElementById("status");
+    const spinnerEl = document.getElementById("spinner");
+    const pageRoot = document.getElementById("pageRoot");
+
+    const setProcessing = (on) => {
+      if (on) {
+        pageRoot.classList.add("is-processing");
+        spinnerEl.style.display = "inline-block";
+        document.getElementById("cancelBtn").style.pointerEvents = "none";
+        document.getElementById("cancelBtn").style.opacity = "0.6";
+      } else {
+        pageRoot.classList.remove("is-processing");
+        spinnerEl.style.display = "none";
+        document.getElementById("cancelBtn").style.pointerEvents = "";
+        document.getElementById("cancelBtn").style.opacity = "";
+      }
+    };
+
+    s2sNetsTxnStatus.addEventListener("message", (event) => {
+      const data = JSON.parse(event.data);
+      console.log("📡 NETS status update:", data);
+
+      // ✅ Payment successful
+      if (data.success) {
+        statusEl.textContent = "Payment successful! Redirecting...";
+        statusEl.classList.remove("is-fail");
+        statusEl.classList.add("is-success");
+        setProcessing(true);
+
+        s2sNetsTxnStatus.close();
+        if (flowType === "WALLET_TOPUP") {
+          (async () => {
+            try {
+              await fetch(`/wallet/topup/nets/${topupId}/success`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ nets_txn_ref: data.nets_txn_ref })
+              });
+            } catch (e) { console.warn('wallet success hook failed', e); }
+            setTimeout(goToWallet, 800);
+          })();
+        } else {
+          setTimeout(goToInvoice, 1500);
+        }
+        return;
+      }
+
+      // ❌ Payment failed
+      if (data.fail) {
+        statusEl.textContent = "Payment failed. Redirecting...";
+        statusEl.classList.remove("is-success");
+        statusEl.classList.add("is-fail");
+        setProcessing(true);
+
+        s2sNetsTxnStatus.close();
+        if (flowType === "WALLET_TOPUP") {
+          (async () => {
+            try { await fetch(`/wallet/topup/nets/${topupId}/fail`, { method: 'POST' }); } catch (e) {}
+            setTimeout(goToWallet, 500);
+          })();
+        } else {
+          setTimeout(goToInvoice, 500);
+        }
+        return;
+      }
+    });
+
+    /* ===============================
+       COUNTDOWN TIMER
+    =============================== */
+    const timerElement = document.getElementById("timer");
+    let remainingTime = 300; // 5 minute timeout
+
+    const updateTimer = () => {
+      const minutes = Math.floor(remainingTime / 60);
+      const seconds = remainingTime % 60;
+
+      timerElement.innerHTML =
+        `<span class="clock">⏱</span>Time remaining: ${minutes}:${seconds.toString().padStart(2, "0")}`;
+
+      // UI-only: turn red in last 60 seconds (does not change logic)
+      if (remainingTime <= 60) {
+        timerElement.style.color = "var(--danger)";
+      } else {
+        timerElement.style.color = "var(--primary)";
+      }
+
+      remainingTime--;
+
+      if (remainingTime < 0) {
+        clearInterval(timerInterval);
+        statusEl.textContent = "Transaction timed out. Redirecting...";
+        statusEl.classList.remove("is-success");
+        statusEl.classList.add("is-fail");
+        setProcessing(true);
+
+        s2sNetsTxnStatus.close();
+        (async () => {
+          try {
+            if (flowType === "WALLET_TOPUP") {
+              await fetch(`/wallet/topup/nets/${topupId}/expire`, { method: 'POST' });
+            } else if (orderId) {
+              await fetch(`/pay/nets/${orderId}/expire`, { method: 'POST' });
+            }
+          } catch (e) {
+            console.warn('NETS expire call failed', e);
+          } finally {
+            setTimeout(flowType === "WALLET_TOPUP" ? goToWallet : goToInvoice, 500);
+          }
+        })();
+      }
+    };
+
+    const timerInterval = setInterval(updateTimer, 1000);
+    updateTimer();
+  </script>
+</body>
+</html>

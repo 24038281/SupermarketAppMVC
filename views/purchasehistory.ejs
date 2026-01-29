@@ -66,7 +66,7 @@
                     <th>Product</th>
                     <th class="text-end">Unit</th>
                     <th class="text-end">Quantity</th>
-                    <th class="text-end">Line total</th>
+                    <th class="text-end">Subtotal</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -102,7 +102,8 @@
               </div>
             </div>
             <div class="text-end mt-3">
-              <a class="btn btn-outline-primary btn-sm" href="/invoice/<%= order.invoiceId || order.id %>">View invoice</a>
+              <% const invoiceLinkId = (order.invoiceNumber || '').replace(/^#/, '') || order.invoiceId; %>
+              <a class="btn btn-outline-primary btn-sm" href="/invoice/<%= invoiceLinkId %>">View invoice</a>
               <a class="btn btn-primary btn-sm ms-2" href="/orders/<%= order.id %>/reorder">Order Again</a>
             </div>
           </div>

@@ -380,6 +380,10 @@
             });
 
             const data = await res.json().catch(() => ({}));
+            if (data.redirectUrl) {
+              window.location.href = data.redirectUrl;
+              throw new Error(data.error || 'Order already paid');
+            }
             if (!res.ok) {
               throw new Error(data.error || 'PayPal create-order failed');
             }
@@ -395,6 +399,10 @@
             });
 
             const result = await res.json().catch(() => ({}));
+            if (result.redirectUrl) {
+              window.location.href = result.redirectUrl;
+              return;
+            }
             if (!res.ok) {
               console.error('capture-order error:', result);
               throw new Error(result.error || 'PayPal capture-order failed');

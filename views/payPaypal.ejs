@@ -34,6 +34,10 @@
           body: JSON.stringify({ amount, orderId })
         });
         const data = await res.json().catch(() => ({}));
+        if (data.redirectUrl) {
+          window.location.href = data.redirectUrl;
+          throw new Error(data.error || 'Order already paid');
+        }
         if (!res.ok || !data.id) throw new Error(data.error || 'Failed to create PayPal order');
         return data.id;
       }
@@ -45,6 +49,10 @@
           body: JSON.stringify({ orderID: paypalOrderId, orderId })
         });
         const data = await res.json().catch(() => ({}));
+        if (data.redirectUrl) {
+          window.location.href = data.redirectUrl;
+          return;
+        }
         if (!res.ok || !data.redirectUrl) throw new Error(data.error || 'Failed to capture PayPal order');
         window.location.href = data.redirectUrl;
       }

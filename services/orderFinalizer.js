@@ -6,9 +6,11 @@ const columnExists = async (conn, table, column) => {
 };
 
 async function deductInventoryForOrder(conn, orderId, items) {
-  // Prefer stock_qty column; fall back to quantity if not present
-  const useStockQty = await columnExists(conn, 'products', 'stock_qty');
-  const stockColumn = useStockQty ? 'stock_qty' : 'quantity';
+  const hasStockQty = await columnExists(conn, 'products', 'stock_qty');
+  const hasQuantity = await columnExists(conn, 'products', 'quantity');
+  if (!hasStockQty && !hasQuantity) {
+    throw new Error('No stock column found on products (expected stock_qty or quantity)');
+  }
 
   const orderItems = items || (await conn.query(
     'SELECT product_id, quantity FROM order_items WHERE order_id = ? FOR UPDATE',
@@ -18,18 +20,35 @@ async function deductInventoryForOrder(conn, orderId, items) {
   for (const it of orderItems || []) {
     const qty = Number(it.quantity) || 0;
     if (qty <= 0) continue;
-    const [res] = await conn.query(
-      `UPDATE products SET ${stockColumn} = ${stockColumn} - ? WHERE id = ? AND ${stockColumn} >= ?`,
-      [qty, it.product_id, qty]
-    );
+    let res;
+    if (hasStockQty && hasQuantity) {
+      [res] = await conn.query(
+        `UPDATE products
+         SET stock_qty = stock_qty - ?,
+             quantity = quantity - ?
+         WHERE id = ?
+           AND stock_qty >= ?
+           AND quantity >= ?`,
+        [qty, qty, it.product_id, qty, qty]
+      );
+    } else {
+      const stockColumn = hasStockQty ? 'stock_qty' : 'quantity';
+      [res] = await conn.query(
+        `UPDATE products SET ${stockColumn} = ${stockColumn} - ? WHERE id = ? AND ${stockColumn} >= ?`,
+        [qty, it.product_id, qty]
+      );
+    }
     if (!res.affectedRows) throw new Error(`Insufficient stock for product ${it.product_id}`);
   }
 }
 
 async function restockInventoryForOrder(conn, orderId, items) {
-  // Adds quantities back after a refund. Uses stock_qty when available.
-  const useStockQty = await columnExists(conn, 'products', 'stock_qty');
-  const stockColumn = useStockQty ? 'stock_qty' : 'quantity';
+  // Adds quantities back after a refund. Updates both stock_qty and quantity when both exist.
+  const hasStockQty = await columnExists(conn, 'products', 'stock_qty');
+  const hasQuantity = await columnExists(conn, 'products', 'quantity');
+  if (!hasStockQty && !hasQuantity) {
+    throw new Error('No stock column found on products (expected stock_qty or quantity)');
+  }
 
   const orderItems = items || (await conn.query(
     'SELECT product_id, quantity FROM order_items WHERE order_id = ? FOR UPDATE',
@@ -39,10 +58,21 @@ async function restockInventoryForOrder(conn, orderId, items) {
   for (const it of orderItems || []) {
     const qty = Number(it.quantity) || 0;
     if (qty <= 0) continue;
-    await conn.query(
-      `UPDATE products SET ${stockColumn} = ${stockColumn} + ? WHERE id = ?`,
-      [qty, it.product_id]
-    );
+    if (hasStockQty && hasQuantity) {
+      await conn.query(
+        `UPDATE products
+         SET stock_qty = stock_qty + ?,
+             quantity = quantity + ?
+         WHERE id = ?`,
+        [qty, qty, it.product_id]
+      );
+    } else {
+      const stockColumn = hasStockQty ? 'stock_qty' : 'quantity';
+      await conn.query(
+        `UPDATE products SET ${stockColumn} = ${stockColumn} + ? WHERE id = ?`,
+        [qty, it.product_id]
+      );
+    }
   }
 }
 

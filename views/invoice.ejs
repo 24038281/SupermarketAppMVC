@@ -36,6 +36,7 @@
         .banner-success { background: #e6f4ea; color: #1d7a32; border: 1px solid #c7e6d0; }
         .banner-failed { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
         .banner-pending { background: #fff7ed; color: #9a3412; border: 1px solid #fed7aa; }
+        .banner-info { background: #e0f2fe; color: #075985; border: 1px solid #bae6fd; }
 
         .invoice-header {
             display: flex;
@@ -219,6 +220,8 @@
 <body>
 <div class="invoice-wrapper">
     <%
+        const successMsgs = typeof successMessages !== 'undefined' ? successMessages : [];
+        const errorMsgs = typeof messages !== 'undefined' ? messages : [];
         const payStatus = String(order.payment_status || order.status || 'PENDING').toUpperCase().trim();
         const isPaid = payStatus === 'PAID' || payStatus === 'SUCCESS';
         const isCancelled = payStatus === 'CANCELLED' || payStatus.includes('CANCEL');
@@ -251,6 +254,22 @@
         const refundAmount = order.refund_amount;
         const paymentFailureReason = order.payment_failure_reason;
     %>
+
+    <% if (successMsgs && successMsgs.length) { %>
+    <div class="status-banner banner-success">
+        <% successMsgs.forEach(function(message) { %>
+            <div><%= message %></div>
+        <% }); %>
+    </div>
+    <% } %>
+
+    <% if (errorMsgs && errorMsgs.length) { %>
+    <div class="status-banner banner-info">
+        <% errorMsgs.forEach(function(message) { %>
+            <div><%= message %></div>
+        <% }); %>
+    </div>
+    <% } %>
 
     <!-- Header -->
     <div class="invoice-header">

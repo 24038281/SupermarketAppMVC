@@ -374,12 +374,16 @@ app.get('/pay/paypal/:orderId', checkAuthenticated, async (req, res) => {
 
     try {
         const [rows] = await connection.promise().query(
-            `SELECT final_total FROM orders WHERE id = ? AND user_id = ?`,
+            `SELECT final_total, payment_status FROM orders WHERE id = ? AND user_id = ?`,
             [orderId, userId]
         );
         if (!rows || !rows.length) {
             req.flash('error', 'Order not found for PayPal payment.');
             return res.redirect('/orders');
+        }
+        if ((rows[0].payment_status || '').toUpperCase() === 'PAID') {
+            req.flash('error', 'Order is already paid.');
+            return res.redirect(`/invoice/${orderId}`);
         }
 
         // keep pending marker so capture knows which order to finalize
@@ -1743,6 +1747,18 @@ app.post('/api/paypal/create-order', async (req, res) => {
     if (!amount) return res.status(400).json({ error: 'amount is required' });
     if (!orderId || Number.isNaN(orderId)) return res.status(400).json({ error: 'orderId is required' });
 
+    const statusRows = await runQuery('SELECT payment_status FROM orders WHERE id = ? LIMIT 1', [orderId]);
+    if (!statusRows || !statusRows.length) {
+      return res.status(404).json({ error: 'Order not found', redirectUrl: '/orders' });
+    }
+    if ((statusRows[0].payment_status || '').toUpperCase() === 'PAID') {
+      return res.status(409).json({
+        error: 'Order is already paid',
+        redirectUrl: `/invoice/${orderId}`,
+        alreadyPaid: true
+      });
+    }
+
     // Mark PENDING when creating PayPal order (only if not already terminal/paid)
     try {
       await runQuery(
@@ -1814,6 +1830,18 @@ app.post('/api/paypal/capture-order', async (req, res) => {
     const orderId = Number(req.body.orderId || req.session.paypalPendingOrderId);
     if (!paypalOrderId) return res.status(400).json({ error: 'orderID (PayPal order) is required' });
     if (!orderId || Number.isNaN(orderId)) return res.status(400).json({ error: 'orderId (local order) is required' });
+
+    const statusRows = await runQuery('SELECT payment_status FROM orders WHERE id = ? LIMIT 1', [orderId]);
+    if (!statusRows || !statusRows.length) {
+      return res.status(404).json({ error: 'Order not found', redirectUrl: '/orders' });
+    }
+    if ((statusRows[0].payment_status || '').toUpperCase() === 'PAID') {
+      return res.status(409).json({
+        error: 'Order is already paid',
+        redirectUrl: `/invoice/${orderId}`,
+        alreadyPaid: true
+      });
+    }
 
     const capture = await paypal.captureOrder(paypalOrderId);
     console.log('[PayPal] captureOrder response:', JSON.stringify(capture, null, 2));
@@ -2010,13 +2038,13 @@ app.get('/invoice/:id', checkAuthenticated, async (req, res) => {
         );
         const refundRow = refundRows && refundRows[0] ? refundRows[0] : null;
 
-        // Clear any stale "Invoice not found" flash if this lookup succeeded
-        if (req.session && req.session.flash && req.session.flash.error) {
-            delete req.session.flash.error;
-        }
+        const messages = req.flash('error') || [];
+        const successMessages = req.flash('success') || [];
 
         res.render('invoice', {
             user: sessionUser,
+            messages,
+            successMessages,
             order: {
                 ...invoice,
                 id: invoice.order_id, // keep existing view expectations

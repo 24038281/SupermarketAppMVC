@@ -12,6 +12,10 @@ function formatInvoiceNumber(id) {
   const base = 108000; // keeps numbers sequential but in the 108k range
   return `#${base + num}`;
 }
+async function columnExists(conn, table, column) {
+  const [rows] = await conn.query('SHOW COLUMNS FROM ?? LIKE ?', [table, column]);
+  return Array.isArray(rows) && rows.length > 0;
+}
 
 // Admin Dashboard (primary admin only)
 router.get('/admin/dashboard', checkAuthenticated, checkAdmin, async (req, res) => {
@@ -272,6 +276,8 @@ router.post('/admin/refund/:orderId', checkAuthenticated, checkAdmin, async (req
   // ---- Phase 3b: persist success ----
   try {
     await conn.beginTransaction();
+    const [orderRows] = await conn.query('SELECT * FROM orders WHERE id = ? FOR UPDATE', [orderId]);
+    const order = orderRows && orderRows[0] ? orderRows[0] : null;
     if (refundRowId) {
       await conn.query(
         `UPDATE refunds
@@ -285,8 +291,8 @@ router.post('/admin/refund/:orderId', checkAuthenticated, checkAdmin, async (req
     if (paymentId) {
       await conn.query('UPDATE payments SET status = ? WHERE id = ?', ['REFUNDED', paymentId]);
     }
-    const fullRefundTotal = Number(order.final_total ?? order.amount ?? order.subtotal ?? 0);
-    if (amountCents === Math.round(fullRefundTotal * 100)) {
+    const fullRefundTotal = Number(order?.final_total ?? order?.amount ?? order?.subtotal ?? 0);
+    if (order && amountCents === Math.round(fullRefundTotal * 100)) {
       const [items] = await conn.query(
         'SELECT product_id, quantity FROM order_items WHERE order_id = ? FOR UPDATE',
         [orderId]
@@ -431,8 +437,10 @@ router.post('/admin/refunds/nets/:refundId/complete', checkAuthenticated, checkA
   const conn = connection.promise();
   try {
     await conn.beginTransaction();
+    const hasLoyaltyPointsEarned = await columnExists(conn, 'orders', 'loyalty_points_earned');
+    const loyaltySelect = hasLoyaltyPointsEarned ? 'o.loyalty_points_earned' : '0 AS loyalty_points_earned';
     const [rows] = await conn.query(
-      `SELECT r.*, o.user_id, o.final_total, o.subtotal, o.id AS order_id, o.loyalty_points_earned
+      `SELECT r.*, o.user_id, o.final_total, o.subtotal, o.id AS order_id, ${loyaltySelect}
          FROM refunds r
          JOIN orders o ON o.id = r.order_id
         WHERE r.id = ? FOR UPDATE`,
@@ -879,8 +887,12 @@ router.get('/admin/invoices/:id', checkAuthenticated, checkAdmin, (req, res) => 
             console.error('Failed to load refund info', rErr);
           }
           const refundRow = refundRows && refundRows[0] ? refundRows[0] : null;
+          const messages = req.flash('error') || [];
+          const successMessages = req.flash('success') || [];
           res.render('invoice', {
             user: req.session.user,
+            messages,
+            successMessages,
             order,
             items: itemRows,
             invoiceNumber,

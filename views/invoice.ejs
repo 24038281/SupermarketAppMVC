@@ -380,6 +380,12 @@
             <td><%= new Date(paidTime).toLocaleString() %></td>
         </tr>
         <% } %>
+        <% if (isPaid && paymentMethodNormalized === 'paypal' && order.paypal_capture_id) { %>
+        <tr>
+            <th>PayPal Transaction ID</th>
+            <td><%= order.paypal_capture_id %></td>
+        </tr>
+        <% } %>
         <% if (netsRef) { %>
         <tr>
             <th>NETS Txn Ref</th>
